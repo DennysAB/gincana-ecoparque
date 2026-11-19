@@ -7,7 +7,7 @@ Este repositorio contiene **solo código público**. No suba paquetes de equipos
 ## Archivos
 
 - `index.html`, `app.js`, `style.css`: aplicación de cada equipo.
-- `organizacion.html`, `admin.js`: generador local de nueve paquetes cifrados y claves de facilitadores.
+- `organizacion.html`, `admin.js`: generador local de nueve paquetes cifrados y 180 PIN numéricos únicos de cinco dígitos.
 - `sw.js`, `manifest.webmanifest`, `icon.svg`: instalación PWA y caché sin conexión.
 
 ## Palabras turísticas (beta 1.3)
