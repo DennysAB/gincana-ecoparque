@@ -101,7 +101,7 @@ async function generateDemo(){
  finally{btn.disabled=false}
 }
 async function generateReal(){
- if(stored(REAL_STORE)&&!confirm("Ya existe una generación de nueve equipos. ¿Crear otra? Deberás distribuir los nueve nuevos paquetes y palabras."))return;
+ if(stored(REAL_STORE)&&!confirm("Ya existe una generación de nueve equipos. ¿Crear otra? Deberás distribuir los nueve nuevos paquetes y PIN."))return;
  const tasks=[];
  for(let i=0;i<9;i++){
   const title=$("title"+i).value.trim(),task=$("task"+i).value.trim(),clue=$("clue"+i).value.trim();
