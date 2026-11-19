@@ -30,6 +30,16 @@ Este repositorio contiene **solo código público**. No suba paquetes de equipos
 6. En el evento, la organización activa el equipo con su palabra; cada facilitador introduce la palabra de inicio al llegar y la palabra de validación después de comprobar el reto.
 7. Después de las nueve estaciones y la confirmación del retorno, el equipo organiza los nueve pares en orden E1–E9 y abre el cofre.
 
+## PIN de cinco dígitos (beta 1.4)
+
+- La organización genera **180 PIN numéricos distintos**, entre 10000 y 99999, para los nueve equipos.
+- Nueve PIN activan los equipos y nueve confirman sus retornos.
+- Cada una de las 81 combinaciones equipo–estación recibe dos PIN diferentes: inicio y validación.
+- El CSV de facilitadores se ordena por estación y equipo, con una fila por combinación.
+- Los PIN se introducen con teclado numérico en el iPhone.
+- **No reutilice los JSON generados con versiones anteriores:** genere paquetes nuevos, guarde el respaldo privado y reimporte el JSON correspondiente en cada teléfono.
+- **Seguridad:** un PIN de cinco dígitos puede probarse por fuerza bruta fuera de línea. El cifrado no proporciona una garantía sólida de confidencialidad con esta longitud de PIN; es indispensable la comprobación física del reto y el control de los teléfonos y hojas de claves.
+
 ## Restricciones conocidas
 
 - Sin red local ni internet no existe sincronización ni clasificación automática global.
