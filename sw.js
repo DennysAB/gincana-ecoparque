@@ -1,4 +1,4 @@
-const CACHE="ecoparque-v3";
+const CACHE="ecoparque-v4";
 const ASSETS=["./","./index.html","./app.js","./style.css","./manifest.webmanifest","./icon.svg"];
 self.addEventListener("install",event=>event.waitUntil(
  caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting())
