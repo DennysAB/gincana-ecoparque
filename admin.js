@@ -1,7 +1,63 @@
 "use strict";
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const DEMO_STORE="ecoparque_demo_beta14",REAL_STORE="ecoparque_event_beta14";
+const DEMO_STORE="ecoparque_demo_beta15",REAL_STORE="ecoparque_event_beta15";
+const STATIONS=[
+ {
+  "place": "Caseta 1",
+  "title": "El pasaporte destruido",
+  "task": "MISIÓN: Reconstruyan sobre el suelo el pasaporte de 12 piezas de cartulina A4, impreso por ambas caras. Lean las seis letras que aparecen al dorso, en el orden indicado, y conviertan cada letra en un dígito mediante el teclado telefónico T9: ABC=2, DEF=3, GHI=4, JKL=5, MNO=6, PQRS=7, TUV=8, WXYZ=9. Comuníquenle al facilitador la secuencia de seis dígitos. El facilitador verificará la respuesta y, si es correcta, introducirá su PIN de validación.",
+  "clue": "El siguiente guardián no ruge como león ni vive en una jaula: su figura representa al gran felino andino. Busquen la ESCULTURA DEL PUMA."
+ },
+ {
+  "place": "Escultura del puma",
+  "title": "La maleta imposible",
+  "task": "MISIÓN: Su expedición parte de inmediato. Elijan exactamente cuatro tarjetas de equipaje, una de cada categoría (orientación, protección, salud y comunicación). La suma de los pesos no debe superar 8 kg y la utilidad total debe alcanzar al menos 21 puntos. Cada tarjeta muestra peso y utilidad. Coloquen su selección en el suelo junto al cartel A4 y expliquen el cálculo. Solo existe una combinación válida. El facilitador la verificará y validará el reto con su PIN.",
+  "clue": "No es la primera ni la tercera. Entre los refugios numerados, su próximo destino es la CASETA 2."
+ },
+ {
+  "place": "Caseta 2",
+  "title": "El mapa de las siete piezas",
+  "task": "MISIÓN: Observen durante diez segundos la figura modelo. Después reconstruyan exactamente esa silueta sobre el suelo con las siete piezas de tangram recortadas de cartulina A4. Pueden intentar tantas veces como sea necesario. Solo se acepta la figura exacta; el facilitador verificará la coincidencia y validará con su PIN.",
+  "clue": "Tengo raíces sin pies y copa sin bebida; doy sombra sin llevar sombrero. Su siguiente misión está junto al ÁRBOL señalado."
+ },
+ {
+  "place": "Árbol",
+  "title": "La torre del explorador",
+  "task": "MISIÓN: Construyan una pirámide de seis vasos (tres en la base, dos en el segundo nivel y uno arriba) usando únicamente el aro elástico sujeto por cuerdas. Cada participante maneja una cuerda para abrir, cerrar, elevar y desplazar el aro. Está prohibido tocar los vasos con las manos mientras construyen. Cuando la torre se sostenga por sí sola, el facilitador introducirá su PIN. No hay cifras impresas en los vasos.",
+  "clue": "Tres es el resultado de doce dividido para cuatro. Busquen la CASETA 3."
+ },
+ {
+  "place": "Caseta 3",
+  "title": "La ruta que nadie encuentra",
+  "task": "MISIÓN: En el mapa ficticio impreso en cartulina A4, tracen una ruta continua desde SALIDA hasta META siguiendo únicamente las conexiones dibujadas y todas las restricciones del cartel. No pueden atravesar zonas prohibidas ni inventar caminos. Comparen la secuencia de lugares con el facilitador; solo validará una ruta que cumpla todas las condiciones.",
+  "clue": "No busquen una caseta: donde los más pequeños se divierten hay dos zonas. Vayan al ÁREA DE JUEGOS INFANTILES 1, la primera."
+ },
+ {
+  "place": "Área de juegos infantiles 1",
+  "title": "El espejo del espía",
+  "task": "MISIÓN: El mensaje de la cartulina A4 está escrito como si se viera en un espejo. Primero lean correctamente las letras reflejadas (pueden utilizar un espejo de mano). Después retrocedan TRES posiciones en el alfabeto latino de 26 letras, sin Ñ, para descifrar la palabra. Ejemplo: D→A, E→B, F→C. Pronuncien la palabra final al facilitador para que la verifique y valide con su PIN.",
+  "clue": "No late ni bombea sangre, pero todos reconocen su forma como símbolo del afecto. Busquen el CORAZÓN."
+ },
+ {
+  "place": "Corazón",
+  "title": "Operación silencio absoluto",
+  "task": "MISIÓN: Transmitan por mímica, en cadena y sin hablar, una secuencia de seis símbolos turísticos. El primer integrante observa la secuencia de fichas; cada integrante comunica los símbolos al siguiente sin mostrar las tarjetas. El último escribe las seis palabras en el orden recibido. El facilitador compara el resultado con las fichas. Si alguien habla, sustituirá una ficha por un símbolo nuevo y se repetirá la transmisión correspondiente. Solo la secuencia completa y correcta permite validar con PIN.",
+  "clue": "Dos al cuadrado es cuatro. La investigación continúa en la CASETA 4."
+ },
+ {
+  "place": "Caseta 4",
+  "title": "El robo de la brújula dorada",
+  "task": "MISIÓN: Resuelvan el caso usando la hoja detectivesca A4: cuatro sospechosos, cuatro horarios, cuatro lugares y cuatro evidencias. Cada persona corresponde a un único horario, lugar y objeto. Marquen descartes y deducciones hasta identificar al culpable, la hora y el lugar del robo. Expliquen su razonamiento. El facilitador comprobará la solución y validará con su PIN; no es necesario convertir la respuesta a números.",
+  "clue": "Aún queda una zona para jugar. Busquen el ÁREA DE JUEGOS INFANTILES 2, no la primera."
+ },
+ {
+  "place": "Área de juegos infantiles 2",
+  "title": "La bóveda de los nueve secretos",
+  "task": "MISIÓN: Completen la cuadrícula numérica 4×4 impresa en cartulina A4. Coloquen los números del 1 al 4 sin repetir en cada fila, columna ni bloque de 2×2. Cuando todas las casillas sean correctas, el facilitador introducirá su PIN de validación. El par de cifras de esta estación se mostrará en la aplicación, como en las demás.",
+  "clue": "La serie de casetas comienza en uno. Continúen hacia la CASETA 1. Si allí comenzó su equipo, soliciten la confirmación de retorno; si no, prosigan con el reto E1."
+ }
+];
 const PIN_MIN=10000,PIN_RANGE=90000,PIN_LIMIT=Math.floor(4294967296/PIN_RANGE)*PIN_RANGE;
 function pinPlan(){
  const used=new Set();
@@ -47,11 +103,13 @@ function stationPins(plan){
 }
 function render(){
  let h='<section class="card"><h2>Prueba técnica rápida</h2><p>Genera un equipo ficticio A con PIN numéricos de cinco dígitos. Se conservarán el paquete y los PIN en este navegador.</p><button id="demo">Generar nuevo equipo A de prueba</button><div id="demo-result"></div></section>';
- h+='<section class="card"><h2>Configuración real de nueve estaciones</h2><p>Escribe las consignas privadas y las pistas finales. Se asignarán aleatoriamente 180 PIN distintos de cinco dígitos: 9 de activación, 9 de retorno y 162 de inicio/validación. Cada equipo tendrá PIN diferentes para cada estación.</p><p class="warn">Los PIN de cinco dígitos son más fáciles de teclear, pero se pueden adivinar mediante pruebas exhaustivas sin conexión. El facilitador debe comprobar físicamente el reto antes de validar.</p></section>';
- for(let i=0;i<9;i++)h+='<section class="card"><h3>Estación E'+(i+1)+'</h3><label>Nombre del reto</label><input id="title'+i+'" placeholder="Nombre de la estación"><label>Consigna del reto</label><textarea id="task'+i+'" placeholder="Descripción del desafío"></textarea><label>Pista hacia la siguiente estación</label><textarea id="clue'+i+'">Pista provisional: diríjanse a la estación E'+((i+1)%9+1)+'.</textarea></section>';
+ h+='<section class="card"><h2>Configuración real de nueve estaciones</h2><p>Se han precargado las nueve ubicaciones, consignas y pistas. Revise y personalice el texto antes de generar los paquetes. Los materiales impresos contienen las respuestas físicas. Se asignarán aleatoriamente 180 PIN distintos de cinco dígitos: 9 de activación, 9 de retorno y 162 de inicio/validación. Cada equipo tendrá PIN diferentes para cada estación.</p><p class="warn">Los PIN de cinco dígitos son más fáciles de teclear, pero se pueden adivinar mediante pruebas exhaustivas sin conexión. El facilitador debe comprobar físicamente el reto antes de validar.</p></section>';
+ for(let i=0;i<9;i++)h+='<section class="card"><h3>Estación E'+(i+1)+' · '+esc(STATIONS[i].place)+'</h3><label>Nombre del reto</label><input id="title'+i+'" placeholder="Nombre de la estación"><label>Consigna del reto</label><textarea id="task'+i+'" placeholder="Descripción del desafío"></textarea><label>Pista hacia la siguiente estación</label><textarea id="clue'+i+'">Pista provisional: diríjanse a la estación E'+((i+1)%9+1)+'.</textarea></section>';
  h+='<section class="card"><button id="generate">Generar los nueve equipos con PIN de cinco dígitos</button><p>Los nueve paquetes y sus PIN quedarán guardados en este navegador hasta que borres sus datos. Descarga y conserva el respaldo privado.</p><p id="status" aria-live="polite"></p><div id="real-result"></div></section>';
  $("app").innerHTML=h;$("demo").onclick=generateDemo;$("generate").onclick=generateReal;
- showDemo(stored(DEMO_STORE));showReal(stored(REAL_STORE));
+ for(let i=0;i<9;i++){const d=STATIONS[i];$("title"+i).value=d.title;$("task"+i).value=d.task;$("clue"+i).value=d.clue}
+ const old=stored(REAL_STORE);if(old?.tasks?.length===9){for(let i=0;i<9;i++){$("title"+i).value=old.tasks[i].title;$("task"+i).value=old.tasks[i].task;$("clue"+i).value=old.tasks[i].clue}}
+ showDemo(stored(DEMO_STORE));showReal(old);
 }
 function showDemo(d){
  const box=$("demo-result");if(!box||!d)return;
@@ -120,7 +178,7 @@ async function generateReal(){
    kits.push({version:1,eventId,team,start,activationHash:await digest(activation),returnHash:await digest(returnKey),stages});
    $("status").textContent="Cifrando equipo "+team+" de I...";
   }
-  const d={eventId,plan,kits,createdAt:new Date().toISOString()};
+  const d={eventId,plan,kits,tasks,createdAt:new Date().toISOString()};
   keep(REAL_STORE,d);showReal(d);$("status").textContent="Listo. Descarga los nueve paquetes y las dos hojas de PIN.";
  }catch(err){alert("No se pudieron generar los paquetes: "+err.message)}
  finally{btn.disabled=false}
