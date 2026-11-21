@@ -30,11 +30,11 @@ Este repositorio contiene **solo código público**. No suba paquetes de equipos
 - **No reutilice los JSON generados con versiones anteriores:** genere paquetes nuevos, guarde el respaldo privado y reimporte el JSON correspondiente en cada teléfono.
 - **Seguridad:** un PIN de cinco dígitos puede probarse por fuerza bruta fuera de línea. El cifrado no proporciona una garantía sólida de confidencialidad con esta longitud de PIN; es indispensable la comprobación física del reto y el control de los teléfonos y hojas de claves.
 
-## Materiales y guía operativa
+## Formación de equipos sin materiales
 
-- `plantillas.html`: 26 páginas A4 para imprimir, incluidas 63 tarjetas de destinos, palabras de nombres/eslóganes y las nueve pruebas.
-- `guia.html`: guía con organización, dinámicas iniciales, nueve estaciones, soluciones e ilustraciones. **Atención: el repositorio es público y las soluciones son accesibles. Antes del evento, mantenga estas páginas fuera del alcance de los participantes o traslade la guía a un repositorio privado.**
-- Los nueve retos y pistas están precargados en `admin.js` para generar kits; los PIN y fragmentos se generan en el navegador del organizador y no se publican.
+**Dinámica: Agentes secretos en movimiento.** Los asistentes caminan libremente y se mezclan. A la señal del líder, se detienen; el organizador asigna números del 1 al 9 de forma consecutiva y repetida hasta incluir a todos. Sin hablar, cada participante debe encontrar a quienes tienen su mismo número y formar su agencia. La distribución queda equilibrada (diferencia máxima de una persona). Después, cada grupo crea su nombre y eslogan.
+
+Los retos y pistas están precargados en el generador local. Las soluciones y materiales impresos no se publican en la aplicación.
 
 ## Restricciones conocidas
 
