@@ -134,8 +134,8 @@ function showReal(d){
  '<h3>Equipos y PIN</h3><div class="grid">'+teams.map(x=>'<div class="tile"><strong>Equipo '+x.team+'</strong><small>Activa</small><br><code>'+esc(x.activation)+'</code><br><small>Retorno</small><br><code>'+esc(x.returnKey)+'</code><button class="alt" data-kit="'+x.team+'">Descargar '+x.team+'</button></div>').join("")+'</div>'+
  '<h3>PIN de facilitadores, por estación y equipo</h3>'+Array.from({length:9},(_,i)=>'<details class="card"><summary>Estación E'+(i+1)+' · nueve equipos</summary><div class="grid">'+stationPins(d.plan).filter(x=>x.id===i+1).map(x=>'<div class="tile"><strong>Equipo '+x.team+'</strong><small>Inicio</small><br><code>'+esc(x.startKey)+'</code><br><small>Validación</small><br><code>'+esc(x.finishKey)+'</code></div>').join("")+'</div></details>').join("");
  $("backup-real").onclick=()=>save("RESPALDO-PRIVADO-ECOPARQUE.json",d);
- $("stations-csv").onclick=()=>save("pin-facilitadores.csv",csv([["Estacion","Equipo","PIN de inicio","PIN de validacion"],...stationPins(d.plan).map(x=>["E"+x.id,x.team,x.startKey,x.finishKey])]),"text/csv;charset=utf-8");
- $("teams-csv").onclick=()=>save("pin-equipos.csv",csv([["Equipo","Estacion inicial","PIN de activacion","PIN de retorno"],...teams.map(x=>[x.team,"E"+x.start,x.activation,x.returnKey])]),"text/csv;charset=utf-8");
+ $("stations-csv").onclick=()=>save("pin-facilitadores.csv",csv([["Estacion","Ubicacion","Equipo","PIN de inicio","PIN de validacion"],...stationPins(d.plan).map(x=>["E"+x.id,STATIONS[x.id-1].place,x.team,x.startKey,x.finishKey])]),"text/csv;charset=utf-8");
+ $("teams-csv").onclick=()=>save("pin-equipos.csv",csv([["Equipo","Estacion inicial","Ubicacion inicial","PIN de activacion","PIN de retorno"],...teams.map(x=>[x.team,"E"+x.start,STATIONS[x.start-1].place,x.activation,x.returnKey])]),"text/csv;charset=utf-8");
  box.querySelectorAll("[data-kit]").forEach(b=>b.onclick=()=>save("equipo-"+b.dataset.kit+".json",d.kits[b.dataset.kit.charCodeAt(0)-65]));
 }
 async function generateDemo(){
@@ -168,11 +168,14 @@ async function generateReal(){
  }
  const btn=$("generate");btn.disabled=true;
  try{
-  const plan=pinPlan(),eventId="ECO-"+key(12),kits=[];
+  const plan=pinPlan(),eventId="ECO-"+key(12),kits=[],finalCodes=new Set();
   for(let t=0;t<9;t++){
    const team=String.fromCharCode(65+t),start=t+1,activation=plan.activations[t],returnKey=plan.returns[t],stages=[];
+   let fragments,finalCode;
+   do{fragments=Array.from({length:9},()=>String(crypto.getRandomValues(new Uint32Array(1))[0]%100).padStart(2,"0"));finalCode=fragments.join("")}while(finalCodes.has(finalCode));
+   finalCodes.add(finalCode);
    for(let id=1;id<=9;id++){
-    const {title,task,clue}=tasks[id-1],fragment=String(crypto.getRandomValues(new Uint32Array(1))[0]%100).padStart(2,"0");
+    const {title,task,clue}=tasks[id-1],fragment=fragments[id-1];
     stages.push({id,challenge:await seal({id,title,task},plan.starts[t][id-1]),reward:await seal({id,fragment,clue},plan.finishes[t][id-1])});
    }
    kits.push({version:1,eventId,team,start,activationHash:await digest(activation),returnHash:await digest(returnKey),stages});
