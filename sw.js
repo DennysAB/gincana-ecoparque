@@ -1,4 +1,4 @@
-const CACHE="ecoparque-v4";
+const CACHE="ecoparque-v5";
 const ASSETS=["./","./index.html","./app.js","./style.css","./manifest.webmanifest","./icon.svg"];
 self.addEventListener("install",event=>event.waitUntil(
  caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting())
@@ -10,6 +10,7 @@ self.addEventListener("fetch",event=>{
  if(event.request.method!=="GET")return;
  const url=new URL(event.request.url);
  if(url.origin!==self.location.origin)return;
+ if(/\/(organizacion\.html|admin\.js|guia\.html|plantillas\.html)$/.test(url.pathname))return;
  event.respondWith((async()=>{
   try{
    const response=await fetch(event.request);
