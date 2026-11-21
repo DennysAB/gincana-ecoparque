@@ -18,7 +18,7 @@ const STATIONS=[
  {
   "place": "Caseta 2",
   "title": "El mapa de las siete piezas",
-  "task": "MISIÓN: Observen durante diez segundos la figura modelo. Después reconstruyan exactamente esa silueta sobre el suelo con las siete piezas de tangram recortadas de cartulina A4. Pueden intentar tantas veces como sea necesario. Solo se acepta la figura exacta; el facilitador verificará la coincidencia y validará con su PIN.",
+  "task": "MISIÓN: Observen durante diez segundos la figura modelo. Después reconstruyan exactamente la silueta turística del VELERO sobre el suelo con las siete piezas de tangram recortadas de cartulina A4. Pueden intentar tantas veces como sea necesario. Solo se acepta la figura exacta; el facilitador verificará la coincidencia y validará con su PIN.",
   "clue": "Tengo raíces sin pies y copa sin bebida; doy sombra sin llevar sombrero. Su siguiente misión está junto al ÁRBOL señalado."
  },
  {
