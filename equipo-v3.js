@@ -59,7 +59,7 @@ async function restore(){
  try{
   const snap=await getDoc(teamRef(id));
   if(!snap.exists())throw Error("Equipo no encontrado.");
-  teamId=id;await subscribeTeam();
+  teamId=id;team=snap.data();await subscribeTeam();
  }catch(e){
   localStorage.removeItem(KEY);enrollment();note("Debe volver a escanear el QR del equipo desde esta instalación.");
  }
@@ -71,7 +71,10 @@ async function subscribeTeam(){
   team=snap.data();render();
  },showError);
  stopEvent=onSnapshot(eventRef(),snap=>{
-  eventData=snap.exists()?snap.data():null;render();
+  const next=snap.exists()?snap.data():null;
+  const shouldRender=eventData?.status!==next?.status||eventData?.winner?.team!==next?.winner?.team;
+  eventData=next;
+  if(shouldRender)render();
  },showError);
 }
 function stationCell(station){
