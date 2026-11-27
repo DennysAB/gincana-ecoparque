@@ -35,7 +35,7 @@ async function initTeam(){
 }
 function render(){
  if(!identity||!teamData)return;
- const t=teamData,n=t.step;
+ const t=teamData,n=t.step,completed=t.completed||{};
  let h='<section class="card"><small>Gincana UPEC · Equipo '+esc(t.team)+'</small><h2>'+esc(t.name)+'</h2><p><em>'+esc(t.slogan||"")+'</em></p><p>Estaciones completadas: <strong>'+n+' / 9</strong></p><div class="progress"><div style="width:'+(n/9*100)+'%"></div></div></section>';
  h+='<section class="card"><h2>QR del equipo</h2><p>Muestren este QR al facilitador de cada estación. El facilitador lo escanea desde su teléfono.</p><div class="qr-img qr-team" id="team-qr"></div><p class="small">Identificación: equipo '+esc(t.team)+'</p></section>';
  if(eventData?.status==="setup"||!eventData)h+='<section class="card"><h2>Preparación</h2><p>Su equipo está registrado. El recorrido comenzará cuando el organizador active el evento.</p></section>';
@@ -47,7 +47,7 @@ function render(){
  }else if(!t.returned){
   h+='<section class="card"><h2>¡Nueve retos superados!</h2><p>Regresen a su estación inicial: <strong>'+esc(t.startKey)+' · '+esc(PLACES[Number(t.startKey.slice(1))-1])+'</strong>. Muestren el QR para que el facilitador confirme el retorno.</p></section>';
  }else{
-  const visit=t.route,completed=t.completed||{};
+  const visit=t.route;
   h+='<section class="card"><h2>El cofre de los nueve secretos</h2><p>Ordenen estos fragmentos por número de estación, desde E1 hasta E9, para formar un código de 18 dígitos.</p><div class="grid">'+visit.map(k=>'<div class="tile"><small>'+esc(k)+'</small><strong>'+esc(completed[k]?.fragment||"??")+'</strong></div>').join("")+'</div><label>Su propuesta de 18 dígitos</label><input id="attempt" inputmode="numeric" maxlength="18" pattern="[0-9]{18}" placeholder="000000000000000000"><button id="test-code">Comprobar combinación</button><p id="result" role="status"></p><p>Cuando la combinación sea correcta, preséntenla al facilitador de <strong>'+esc(t.startKey)+'</strong>. Solo ese facilitador registrará la apertura oficial.</p></section>';
  }
  if(eventData?.status==="finished"&&!t.openedAt)h+='<section class="card"><p class="warn">El evento ha finalizado. No se permiten nuevas validaciones.</p></section>';
