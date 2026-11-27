@@ -1,90 +1,111 @@
 import {initializeApp} from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
 import {getAuth} from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
-import {getFirestore, doc, getDoc} from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
+import {getFirestore,doc} from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
+import {getFunctions,httpsCallable} from "https://www.gstatic.com/firebasejs/12.19.0/firebase-functions.js";
 import {firebaseConfig} from "./firebase-config.js";
 
-export const firebaseConfigured = ["apiKey","authDomain","projectId","appId"].every(k => typeof firebaseConfig[k] === "string" && firebaseConfig[k].trim().length > 0);
-export const app = firebaseConfigured ? initializeApp(firebaseConfig) : null;
-export const auth = app ? getAuth(app) : null;
-export const db = app ? getFirestore(app) : null;
-export const EVENT = "current";
-export const PLACES = [
- "Cancha de fútbol 1","Cancha de fútbol 2 (1)","Cancha de básquet 1",
- "Cancha de básquet 2","Ágora 1","Ágora 2","Parqueadero","Salón",
+export const firebaseConfigured=["apiKey","authDomain","projectId","appId"].every(k=>String(firebaseConfig[k]||"").trim());
+export const app=firebaseConfigured?initializeApp(firebaseConfig):null;
+export const auth=app?getAuth(app):null;
+export const db=app?getFirestore(app):null;
+export const functions=app?getFunctions(app,"us-central1"):null;
+export const EVENT="current";
+export const PLACES=[
+ "Cancha de fútbol 1",
+ "Cancha de fútbol 2 (1)",
+ "Cancha de básquet 1",
+ "Cancha de básquet 2",
+ "Ágora 1",
+ "Ágora 2",
+ "Parqueadero",
+ "Salón",
  "Cancha de fútbol 2 (2)"
 ];
-export const TITLES = [
- "El pasaporte destruido","La maleta imposible","El mapa de las siete piezas",
- "La torre del explorador","La ruta que nadie encuentra","El espejo del espía",
- "Operación silencio absoluto","El robo de la brújula dorada",
- "La bóveda de los nueve secretos"
-];
-export const TASKS = [
- "Reconstruyan en el suelo un pasaporte impreso a doble cara y dividido en 12 piezas. Cuando armen su anverso, den vuelta al conjunto, lean la palabra de seis letras y conviértanla a seis números usando el teclado telefónico T9 (ABC=2, DEF=3, GHI=4, JKL=5, MNO=6, PQRS=7, TUV=8, WXYZ=9). Comuniquen el código al facilitador.",
- "Elijan exactamente cuatro tarjetas de equipaje: una de orientación, una de protección, una de salud y una de comunicación. No pueden superar 8 kg y deben sumar al menos 21 puntos de utilidad. Expliquen el peso y la utilidad de su selección.",
- "Observen durante diez segundos el modelo de velero turístico. Reproduzcan su silueta con las siete piezas del tangram, sin superponerlas y sin usar piezas adicionales. El facilitador comprobará la figura.",
- "Construyan una pirámide con seis vasos: tres abajo, dos encima y uno arriba. Solo pueden sujetar y desplazar cada vaso mediante el aro elástico unido a seis cuerdas. No se permite tocar los vasos directamente durante el armado.",
- "Utilicen el mapa ficticio A4 y sus restricciones para trazar una ruta continua desde SALIDA hasta META. Respeten únicamente las conexiones permitidas y expliquen la secuencia de lugares al facilitador.",
- "Lean el mensaje invertido con ayuda del espejo. Después retrocedan tres letras del alfabeto de 26 letras (sin Ñ): D se convierte en A. Pronuncien la palabra descifrada.",
- "Transmitan en cadena, exclusivamente mediante gestos, seis símbolos turísticos mostrados al primer integrante. El último integrante escribirá las seis palabras en el orden recibido. Nadie puede hablar durante la transmisión.",
- "Analicen el expediente con cuatro sospechosos, cuatro horarios, cuatro lugares y cuatro evidencias. Utilicen las diez pistas para identificar al responsable, la hora, el lugar y el objeto relacionado; expliquen su deducción.",
- "Resuelvan el sudoku 4×4 colocando los números del 1 al 4 una sola vez en cada fila, columna y bloque de 2×2."
-];
-export const $ = id => document.getElementById(id);
-export const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-export const routeFor = start => Array.from({length:9}, (_,i) => ((start-1+i)%9)+1);
-export const stationLabel = n => "E"+n+" · "+PLACES[n-1];
-export const teamRef = t => doc(db,"events",EVENT,"teams",t);
-export const rewardRef = t => doc(db,"events",EVENT,"rewards",t);
-export const tokenRef = t => doc(db,"events",EVENT,"tokens",t);
-export const eventRef = () => doc(db,"events",EVENT);
-export const staffRef = uid => doc(db,"staff",uid);
-
-export async function sha256(s) {
- const data = await crypto.subtle.digest("SHA-256",new TextEncoder().encode(s));
- return Array.from(new Uint8Array(data),b=>b.toString(16).padStart(2,"0")).join("");
-}
-export function randomHex(n=16) {
- const a=crypto.getRandomValues(new Uint8Array(n));
- return Array.from(a,b=>b.toString(16).padStart(2,"0")).join("");
-}
-export function randomPair() {
- const a=crypto.getRandomValues(new Uint32Array(1))[0];
- return String(a%100).padStart(2,"0");
-}
-export function teamLink(team,token) {
- return new URL("./index.html#team="+encodeURIComponent(team)+"&key="+encodeURIComponent(token),window.location.href).href;
-}
-export function parseQr(s) {
- let url;
- try{url=new URL(s)}catch{throw Error("El QR no contiene un enlace válido");}
- const expected = new URL("./index.html",location.href);
- if(url.origin!==expected.origin||url.pathname!==expected.pathname)throw Error("El QR no pertenece a esta gincana");
- const args = new URLSearchParams(url.hash.replace(/^#/,""));
- const team=args.get("team"),token=args.get("key");
- if(!/^[A-I]$/.test(team||"")||!/^[0-9a-f]{32}$/.test(token||""))throw Error("El QR no contiene credenciales válidas");
- return {team,token};
-}
-export async function roleFor(uid) {
- const snap=await getDoc(staffRef(uid));
- if(!snap.exists())throw Error("El usuario no tiene un rol registrado en la colección staff de Firestore");
- return snap.data();
-}
-export function datetime(value) {
- if(!value)return "—";
- const date=value.toDate?value.toDate():new Date(value);
- return date.toLocaleString("es-EC",{dateStyle:"short",timeStyle:"medium"});
-}
-export function errText(error) {
- const code=error?.code||"";
- const causes={
- "auth/invalid-credential":"Correo o contraseña incorrectos.",
- "auth/too-many-requests":"Demasiados intentos. Inténtelo más tarde.",
- "permission-denied":"Permiso denegado. Compruebe los roles y publique firestore.rules.",
- "unavailable":"No se pudo conectar a Firestore. Revise la conexión."
+export const STATIONS=Array.from({length:9},(_,i)=>"E"+(i+1));
+export const TEAMS="ABCDEFGHI".split("");
+export const $=id=>document.getElementById(id);
+export const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+export const eventRef=()=>doc(db,"events",EVENT);
+export const staffRef=uid=>doc(db,"staff",uid);
+export const teamRef=id=>doc(db,"events",EVENT,"teams",id);
+export const teamInvitesCollection=()=>doc(db,"events",EVENT);
+export const stationName=station=>PLACES[Number(station?.slice(1))-1]||"";
+export const shortError=e=>{
+ const codes={
+  "functions/unauthenticated":"Inicie sesión para continuar.",
+  "functions/permission-denied":"QR, cuenta o permiso no autorizado.",
+  "functions/failed-precondition":e?.message,
+  "functions/already-exists":e?.message,
+  "auth/invalid-credential":"Correo o contraseña incorrectos.",
+  "auth/too-many-requests":"Demasiados intentos. Inténtelo después.",
+  "permission-denied":"No tiene permisos para consultar estos datos.",
+  "unavailable":"No hay conexión a Internet o Firestore no responde."
  };
- return causes[code]||error?.message||String(error);
+ return codes[e?.code]||e?.message||String(e);
+};
+export const call=async(name,data={})=>{
+ if(!functions)throw Error("Firebase no está configurado.");
+ const response=await httpsCallable(functions,name)(data);
+ return response.data;
+};
+const root=()=>new URL("./",location.href);
+export function teamInvitationLink(id,token){
+ const url=new URL("index.html",root());
+ url.hash=new URLSearchParams({join:id,token}).toString();
+ return url.href;
 }
-export function setupNotice(){
- document.querySelector("main").innerHTML='<section class="card"><h2>Configuración Firebase pendiente</h2><p>La aplicación está preparada para Firestore, pero aún debe vincularse a un proyecto Firebase. El organizador debe completar <code>firebase-config.js</code>, habilitar Authentication y publicar las reglas de Firestore siguiendo <code>README.md</code>.</p><p class="warn">No registre equipos ni inicie la gincana hasta finalizar la configuración y probar los nueve dispositivos.</p></section>';
+export function facilitatorInvitationLink(station,token){
+ const url=new URL("facilitador.html",root());
+ url.hash=new URLSearchParams({join:station,token}).toString();
+ return url.href;
 }
+export function rewardLink(id,station,token){
+ const url=new URL("index.html",root());
+ url.hash=new URLSearchParams({reward:id,station,token}).toString();
+ return url.href;
+}
+export function parseLink(value,kind){
+ let url;
+ try{url=new URL(String(value||"").trim());}catch{throw Error("El QR no contiene un enlace válido.");}
+ const path=new URL(kind==="facilitator"?"facilitador.html":"index.html",root());
+ if(url.origin!==path.origin||url.pathname!==path.pathname)throw Error("Este QR pertenece a otra aplicación.");
+ const q=new URLSearchParams(url.hash.slice(1));
+ const raw=q.get("token");
+ if(!/^[a-f0-9]{48}$/.test(raw||""))throw Error("El QR no contiene un token válido.");
+ if(kind==="team"){
+  const id=q.get("join");
+  if(!TEAMS.includes(id))throw Error("QR de equipo incorrecto.");
+  return {id,token:raw};
+ }
+ if(kind==="facilitator"){
+  const station=q.get("join");
+  if(!STATIONS.includes(station))throw Error("QR de facilitador incorrecto.");
+  return {station,token:raw};
+ }
+ const id=q.get("reward"),station=q.get("station");
+ if(!TEAMS.includes(id)||!STATIONS.includes(station))throw Error("QR de recompensa incorrecto.");
+ return {id,station,token:raw};
+}
+export function safeQr(node,url,size=180){
+ if(!node)return;
+ node.textContent="";
+ if(typeof QRCode==="undefined"){
+  node.textContent="No se pudo cargar el generador QR. Utilice el enlace como alternativa.";
+  return;
+ }
+ new QRCode(node,{text:url,width:size,height:size,correctLevel:QRCode.CorrectLevel.M});
+}
+export function installHelp(){
+ return '<details class="card"><summary>¿Cómo instalar la aplicación en mi teléfono?</summary>'+
+ '<p><strong>iPhone:</strong> abra el enlace en Safari; pulse Compartir y elija «Añadir a pantalla de inicio».</p>'+
+ '<p><strong>Android:</strong> abra el enlace en Chrome y elija «Instalar aplicación» o «Añadir a pantalla principal».</p>'+
+ '<p><strong>Importante:</strong> escanear un QR abre la web, pero no la instala automáticamente. Si el navegador y la aplicación instalada no comparten sesión, vuelva a escanear su QR durante la preparación.</p></details>';
+}
+export function notConfigured(){
+ $("app").innerHTML='<section class="card"><h2>Conexión Firebase pendiente</h2><p>El código de la gincana está publicado, pero aún no se han instalado las Cloud Functions ni configurado el proyecto Firebase.</p><p>El líder debe completar <code>firebase-config.js</code>, desplegar las funciones y las reglas e iniciar sesión con su cuenta autorizada.</p><p class="warn">La aplicación no permite simular validaciones oficiales sin conexión al servidor.</p></section>';
+}
+export const dateTime=v=>{
+ if(!v)return "—";
+ const date=v.toDate?v.toDate():new Date(v);
+ return date.toLocaleString("es-EC",{dateStyle:"short",timeStyle:"medium"});
+};
