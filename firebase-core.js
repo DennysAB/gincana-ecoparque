@@ -109,3 +109,6 @@ export const dateTime=v=>{
  const date=v.toDate?v.toDate():new Date(v);
  return date.toLocaleString("es-EC",{dateStyle:"short",timeStyle:"medium"});
 };
+
+// Registro de la PWA para las tres interfaces (sin habilitar validaciones sin red).
+if("serviceWorker" in navigator){navigator.serviceWorker.register("./sw.js").catch(()=>{});}
