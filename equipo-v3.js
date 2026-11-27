@@ -37,7 +37,7 @@ function render(){
  if(!identity||!teamData)return;
  const t=teamData,n=t.step,completed=t.completed||{};
  let h='<section class="card"><small>Gincana UPEC · Equipo '+esc(t.team)+'</small><h2>'+esc(t.name)+'</h2><p><em>'+esc(t.slogan||"")+'</em></p><p>Estaciones completadas: <strong>'+n+' / 9</strong></p><div class="progress"><div style="width:'+(n/9*100)+'%"></div></div></section>';
- h+='<section class="card"><h2>QR del equipo</h2><p>Muestren este QR al facilitador de cada estación. El facilitador lo escanea desde su teléfono.</p><div class="qr-img qr-team" id="team-qr"></div><p class="small">Identificación: equipo '+esc(t.team)+'</p></section>';
+ h+='<section class="card"><h2>QR del equipo</h2><p>Muestren este QR al facilitador de cada estación. El facilitador lo escanea desde su teléfono.</p><div class="qr-img qr-team" id="team-qr"></div><button id="copy-team-link" class="alt">Copiar enlace de mi equipo</button><p class="small">Identificación: equipo '+esc(t.team)+'</p></section>';
  if(eventData?.status==="setup"||!eventData)h+='<section class="card"><h2>Preparación</h2><p>Su equipo está registrado. El recorrido comenzará cuando el organizador active el evento.</p></section>';
  else if(t.openedAt)h+='<section class="card"><h2 class="ok">¡Cofre abierto!</h2><p>Registro oficial: '+esc(datetime(t.openedAt))+'</p></section>';
  else if(n<9){
@@ -52,7 +52,8 @@ function render(){
  }
  if(eventData?.status==="finished"&&!t.openedAt)h+='<section class="card"><p class="warn">El evento ha finalizado. No se permiten nuevas validaciones.</p></section>';
  $("app").innerHTML=h;
- if(typeof QRCode!=="undefined")new QRCode($("team-qr"),{text:teamLink(identity.team,identity.token),width:210,height:210,correctLevel:QRCode.CorrectLevel.M});
+ if(typeof QRCode!=="undefined")new QRCode($("team-qr"),{text:teamLink(identity.team,identity.token),width:210,height:210,correctLevel:QRCode.CorrectLevel.M});else $("team-qr").textContent="No se pudo cargar el generador QR. Utilicen el enlace privado como alternativa.";
+ if($("copy-team-link"))$("copy-team-link").onclick=async()=>{const link=teamLink(identity.team,identity.token);try{await navigator.clipboard.writeText(link);alert("Enlace privado copiado.");}catch{prompt("Copie el enlace privado:",link);}};
  if($("test-code"))$("test-code").onclick=()=>{
   const entered=$("attempt").value.trim();
   const expected=Array.from({length:9},(_,i)=>completed["E"+(i+1)]?.fragment||"").join("");
