@@ -1,67 +1,169 @@
-import {auth,db,firebaseConfigured,setupNotice,$,esc,PLACES,TITLES,EVENT,
- teamRef,eventRef,parseQr,teamLink,sha256,datetime,errText} from "./firebase-core.js";
+import {auth,db,firebaseConfigured,notConfigured,call,$,esc,TEAMS,STATIONS,PLACES,
+ eventRef,teamRef,parseLink,shortError,installHelp,dateTime} from "./firebase-core.js";
 import {signInAnonymously,onAuthStateChanged} from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
 import {getDoc,onSnapshot} from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
 
-let identity=null,teamData=null,eventData=null,stopTeam=null,stopEvent=null;
-const STORAGE="upec_gincana_equipo_link";
-function inform(s){const p=$("notice");if(p)p.textContent=s;}
-function accessView(){
- $("app").innerHTML='<section class="card"><h2>Acceso del líder de equipo</h2><p>Abra el enlace QR que le entregó la organización. Si se perdió el enlace, solicite que se lo compartan nuevamente.</p><label>Pegar enlace del equipo</label><input id="link" placeholder="https://.../index.html#team=A&key=..."><button id="join">Abrir mi equipo</button><p id="notice" role="status"></p></section>';
- $("join").onclick=()=>{try{parseQr($("link").value.trim());location.href=$("link").value.trim();}catch(e){inform(errText(e));}};
+const KEY="upec_gincana_my_team";
+let teamId=null,team=null,eventData=null,stopTeam=null,stopEvent=null,reader=null,scanning=false;
+const chestGraphic='<svg xmlns="http://www.w3.org/2000/svg" width="110" height="94" viewBox="0 0 110 94" role="img" aria-label="Cofre digital">'+
+ '<path d="M12 37v-11C12 8 98 8 98 26v11" fill="#845522" stroke="#e8c36e" stroke-width="5"/>'+
+ '<rect x="8" y="35" width="94" height="53" rx="9" fill="#926028" stroke="#f0c978" stroke-width="5"/>'+
+ '<path d="M8 52h94M24 35v53M86 35v53" stroke="#e8c36e" stroke-width="6"/>'+
+ '<rect x="47" y="47" width="16" height="23" rx="3" fill="#152c43" stroke="#f0c978" stroke-width="3"/>'+
+ '<circle cx="55" cy="56" r="2.5" fill="#f0c978"/></svg>';
+function note(s){const n=$("notice");if(n)n.textContent=s;}
+function cleanHash(){history.replaceState(null,"",location.pathname+location.search);}
+function showError(e){note(shortError(e));}
+async function stopCamera(){
+ if(!reader)return;
+ const current=reader;reader=null;
+ try{if(current.getState()===2)await current.stop();await current.clear();}
+ catch(e){console.warn("Cámara",e);}
 }
-async function initTeam(){
+async function startScanner(kind){
+ if(reader)return;
+ if(typeof Html5Qrcode==="undefined"){note("El lector QR no está disponible. Puede pegar el enlace como alternativa.");return;}
+ const box=$("reader");if(!box)return;
  try{
-  let link=location.href;
-  if(!location.hash){link=localStorage.getItem(STORAGE)||"";}
-  if(!link){accessView();return;}
-  const info=parseQr(link);
-  const s=await getDoc(teamRef(info.team));
-  if(!s.exists())throw Error("La organización aún no ha registrado este equipo.");
-  if(await sha256(info.token)!==s.data().qrHash)throw Error("El QR ya no es válido; solicite al organizador un enlace actualizado.");
-  identity=info;
-  localStorage.setItem(STORAGE,teamLink(info.team,info.token));
-  if(stopTeam)stopTeam();if(stopEvent)stopEvent();
-  stopTeam=onSnapshot(teamRef(info.team),snap=>{
-   if(!snap.exists()){inform("Se eliminó el equipo.");return;}
-   teamData=snap.data();render();
-  },e=>inform(errText(e)));
-  stopEvent=onSnapshot(eventRef(),snap=>{eventData=snap.exists()?snap.data():null;render();},e=>inform(errText(e)));
-  render();
+  reader=new Html5Qrcode("reader");
+  await reader.start({facingMode:"environment"},{fps:10,qrbox:{width:230,height:230}},async value=>{
+   await stopCamera();
+   if(kind==="reward")await redeem(value);else await join(value);
+  },()=>{});
+  note("Enfoque el QR con la cámara del teléfono.");
+ }catch(e){showError(e);await stopCamera();}
+}
+function enrollment(){
+ stopCamera();
+ $("app").innerHTML='<section class="card"><h2>Bienvenidos a la gincana UPEC</h2>'+
+ '<p>Soliciten al líder el QR de su equipo. Escanéenlo desde esta pantalla para registrarse y recibir la estación inicial.</p>'+
+ '<button id="scan-invite">Escanear QR de inscripción</button><div id="reader" class="camera-reader"></div>'+
+ '<label>O pegar enlace del equipo</label><input id="invite-link" placeholder="https://.../index.html#join=A&token=...">'+
+ '<button id="join-button" class="alt">Vincular equipo</button><p id="notice" role="status"></p></section>'+
+ installHelp();
+ $("scan-invite").onclick=()=>startScanner("invite");
+ $("join-button").onclick=()=>join($("invite-link").value.trim());
+}
+async function join(value){
+ try{
+  const {id,token}=parseLink(value,"team");
+  if(!auth.currentUser)throw Error("Aún no está lista la autenticación.");
+  await call("joinTeam",{team:id,token});
+  teamId=id;localStorage.setItem(KEY,id);cleanHash();
+  await stopCamera();await subscribeTeam();
+ }catch(e){showError(e);}
+}
+async function restore(){
+ const id=localStorage.getItem(KEY);
+ if(!TEAMS.includes(id)){enrollment();return;}
+ try{
+  const snap=await getDoc(teamRef(id));
+  if(!snap.exists())throw Error("Equipo no encontrado.");
+  teamId=id;await subscribeTeam();
  }catch(e){
-  $("app").innerHTML='<section class="card"><h2>No se pudo acceder al equipo</h2><p class="warn">'+esc(errText(e))+'</p><button id="retry">Abrir otro enlace</button></section>';
-  $("retry").onclick=()=>{localStorage.removeItem(STORAGE);location.hash="";accessView();};
+  localStorage.removeItem(KEY);enrollment();note("Debe volver a escanear el QR del equipo desde esta instalación.");
  }
+}
+async function subscribeTeam(){
+ if(stopTeam)stopTeam();if(stopEvent)stopEvent();
+ stopTeam=onSnapshot(teamRef(teamId),snap=>{
+  if(!snap.exists()){enrollment();return;}
+  team=snap.data();render();
+ },showError);
+ stopEvent=onSnapshot(eventRef(),snap=>{
+  eventData=snap.exists()?snap.data():null;render();
+ },showError);
+}
+function stationCell(station){
+ const done=team?.completed?.[station],current=team?.current===station;
+ return '<div class="station-card '+(done?"done":current?"chosen":"locked")+'">'+
+ '<p class="station-number">'+esc(station)+'</p><strong>'+esc(PLACES[STATIONS.indexOf(station)])+'</strong>'+
+ (done?'<div class="fragment"><small>Fragmento obtenido</small><strong>'+esc(done.fragment)+'</strong></div>':
+ current?'<p class="station-state">ESTACIÓN ASIGNADA</p>':
+ '<p class="station-state">Pendiente</p>')+'</div>';
 }
 function render(){
- if(!identity||!teamData)return;
- const t=teamData,n=t.step,completed=t.completed||{};
- let h='<section class="card"><small>Gincana UPEC · Equipo '+esc(t.team)+'</small><h2>'+esc(t.name)+'</h2><p><em>'+esc(t.slogan||"")+'</em></p><p>Estaciones completadas: <strong>'+n+' / 9</strong></p><div class="progress"><div style="width:'+(n/9*100)+'%"></div></div></section>';
- h+='<section class="card"><h2>QR del equipo</h2><p>Muestren este QR al facilitador de cada estación. El facilitador lo escanea desde su teléfono.</p><div class="qr-img qr-team" id="team-qr"></div><button id="copy-team-link" class="alt">Copiar enlace de mi equipo</button><p class="small">Identificación: equipo '+esc(t.team)+'</p></section>';
- if(eventData?.status==="setup"||!eventData)h+='<section class="card"><h2>Preparación</h2><p>Su equipo está registrado. El recorrido comenzará cuando el organizador active el evento.</p></section>';
- else if(t.openedAt)h+='<section class="card"><h2 class="ok">¡Cofre abierto!</h2><p>Registro oficial: '+esc(datetime(t.openedAt))+'</p></section>';
- else if(n<9){
-  const station=t.route[n],number=Number(station.slice(1));
-  const done=Object.entries(t.completed||{}).length;
-  h+='<section class="card"><small>MISIÓN '+(n+1)+' DE 9</small><h2>Diríjanse a '+esc(station)+'</h2><p><strong>'+esc(PLACES[number-1])+'</strong></p><p>'+esc(TITLES[number-1])+'</p><p>'+(t.inProgress?"Reto activado por el facilitador. Resuelvan el desafío y soliciten su comprobación.":"Al llegar, muestren su QR. El facilitador escaneará el código, explicará la prueba y registrará el inicio.")+'</p><p>Fragmentos obtenidos: '+done+'.</p></section>';
- }else if(!t.returned){
-  h+='<section class="card"><h2>¡Nueve retos superados!</h2><p>Regresen a su estación inicial: <strong>'+esc(t.startKey)+' · '+esc(PLACES[Number(t.startKey.slice(1))-1])+'</strong>. Muestren el QR para que el facilitador confirme el retorno.</p></section>';
+ if(!teamId||!team)return;
+ const completed=team.completed||{},n=team.count||0,live=eventData?.status==="live";
+ let html='<section class="card"><small>Gincana turística UPEC</small><h2>Equipo '+esc(team.id)+' · '+esc(team.name)+'</h2>'+
+ '<p>'+n+' de 9 misiones superadas</p><div class="progress"><div style="width:'+(n/9*100)+'%"></div></div>'+
+ (eventData?.status==="setup"?'<p class="warn">Esperen la señal de inicio del líder.</p>':
+ eventData?.status==="finished"?'<p class="warn">El evento ha finalizado.</p>':"")+
+ '</section><section class="card"><h2>Las nueve estaciones</h2>'+
+ '<p>Se muestran únicamente las ubicaciones. Las instrucciones y los materiales serán proporcionados por el facilitador correspondiente.</p>'+
+ '<div class="stations-grid">'+STATIONS.map(stationCell).join("")+'</div></section>';
+ if(n<9){
+  const station=team.current;
+  html+='<section class="card"><h2>'+(station?"Diríjanse a "+esc(station):"Esperando asignación")+'</h2>'+
+  (station?'<p><strong>'+esc(PLACES[STATIONS.indexOf(station)])+'</strong></p>':"")+
+  '<p>Cuando terminen la misión, el facilitador mostrará un QR exclusivo para su equipo. Escanéenlo aquí para obtener el fragmento de dos dígitos y desbloquear otra estación.</p>'+
+  '<button id="scan-reward" '+(live?"":"disabled")+'>Escanear QR del facilitador</button>'+
+  '<div id="reader" class="camera-reader"></div>'+
+  '<label>O pegar enlace del QR de validación</label><input id="reward-link" placeholder="https://.../index.html#reward=...">'+
+  '<button id="redeem-link" class="alt" '+(live?"":"disabled")+'>Validar QR</button>'+
+  '<p id="notice" role="status"></p></section>';
  }else{
-  const visit=t.route;
-  h+='<section class="card"><h2>El cofre de los nueve secretos</h2><p>Ordenen estos fragmentos por número de estación, desde E1 hasta E9, para formar un código de 18 dígitos.</p><div class="grid">'+visit.map(k=>'<div class="tile"><small>'+esc(k)+'</small><strong>'+esc(completed[k]?.fragment||"??")+'</strong></div>').join("")+'</div><label>Su propuesta de 18 dígitos</label><input id="attempt" inputmode="numeric" maxlength="18" pattern="[0-9]{18}" placeholder="000000000000000000"><button id="test-code">Comprobar combinación</button><p id="result" role="status"></p><p>Cuando la combinación sea correcta, preséntenla al facilitador de <strong>'+esc(t.startKey)+'</strong>. Solo ese facilitador registrará la apertura oficial.</p></section>';
+  const code=STATIONS.map(st=>completed[st]?.fragment||"").join("");
+  html+='<section class="card"><h2>¡Las nueve misiones están completas!</h2>'+
+  '<p>El código final, ordenado de E1 a E9, tiene 18 dígitos:</p>'+
+  '<div class="final-code" id="final-code">'+esc(code)+'</div>'+
+  '<div class="chest-graphic">'+chestGraphic+'</div>'+
+  '<h3>Cofre digital</h3>'+
+  (!team.chestAt?'<p>Introduzcan los 18 dígitos en el cofre. La primera apertura correcta registrada por el servidor determina al equipo ganador.</p>'+
+  '<label>Código de apertura</label><input id="chest-code" inputmode="numeric" maxlength="18" pattern="[0-9]{18}" autocomplete="off" placeholder="000000000000000000">'+
+  '<button id="open-chest" '+(live?"":"disabled")+'>Abrir cofre</button><p id="notice" role="status"></p>':
+  '<h2 class="ok">Cofre abierto</h2><p>Hora registrada: '+esc(dateTime(team.chestAt))+'</p>')+
+  (eventData?.winner?'<p class="ok"><strong>Equipo ganador: '+esc(eventData.winner.team)+' · '+esc(eventData.winner.name)+'</strong></p>':"")+
+  '</section>';
  }
- if(eventData?.status==="finished"&&!t.openedAt)h+='<section class="card"><p class="warn">El evento ha finalizado. No se permiten nuevas validaciones.</p></section>';
- $("app").innerHTML=h;
- if(typeof QRCode!=="undefined")new QRCode($("team-qr"),{text:teamLink(identity.team,identity.token),width:210,height:210,correctLevel:QRCode.CorrectLevel.M});else $("team-qr").textContent="No se pudo cargar el generador QR. Utilicen el enlace privado como alternativa.";
- if($("copy-team-link"))$("copy-team-link").onclick=async()=>{const link=teamLink(identity.team,identity.token);try{await navigator.clipboard.writeText(link);alert("Enlace privado copiado.");}catch{prompt("Copie el enlace privado:",link);}};
- if($("test-code"))$("test-code").onclick=()=>{
-  const entered=$("attempt").value.trim();
-  const expected=Array.from({length:9},(_,i)=>completed["E"+(i+1)]?.fragment||"").join("");
-  $("result").textContent=!/^[0-9]{18}$/.test(entered)?"Ingrese exactamente 18 dígitos.":entered===expected?"¡Combinación correcta! Presenten el código al facilitador para registrar el resultado.":"La combinación no es correcta. Revisen el orden E1–E9.";
- };
+ html+=installHelp();
+ $("app").innerHTML=html;
+ if($("scan-reward"))$("scan-reward").onclick=()=>startScanner("reward");
+ if($("redeem-link"))$("redeem-link").onclick=()=>redeem($("reward-link").value.trim());
+ if($("open-chest"))$("open-chest").onclick=openChest;
 }
-if(!firebaseConfigured)setupNotice();
-else onAuthStateChanged(auth,async u=>{
- if(!u){try{await signInAnonymously(auth);}catch(e){$("app").innerHTML='<section class="card"><p class="warn">'+esc(errText(e))+'</p><p>Active el acceso anónimo en Firebase Authentication.</p></section>';}return;}
- await initTeam();
+async function redeem(value){
+ if(scanning)return;
+ scanning=true;
+ try{
+  const {id,station,token}=parseLink(value,"reward");
+  if(id!==teamId)throw Error("Este QR corresponde a otro equipo.");
+  if(team.current!==station)throw Error("Este QR no corresponde a su estación activa.");
+  const result=await call("redeemProof",{team:id,station,token});
+  cleanHash();await stopCamera();
+  alert("¡Misión completada! Fragmento de "+station+": "+result.fragment+
+   (result.next?" · Su siguiente estación será "+result.next+".":" · ¡Han completado las nueve estaciones!"));
+ }catch(e){showError(e);}finally{scanning=false;}
+}
+async function openChest(){
+ const code=$("chest-code")?.value.trim();
+ if(!/^[0-9]{18}$/.test(code||"")){note("Introduzcan exactamente 18 dígitos.");return;}
+ const btn=$("open-chest");btn.disabled=true;
+ try{
+  const result=await call("openChest",{team:teamId,code});
+  alert(result.winner?"¡COFRE ABIERTO! ¡Su equipo es el ganador oficial!":"Cofre abierto correctamente. Otro equipo llegó primero.");
+ }catch(e){showError(e);}finally{if(btn.isConnected)btn.disabled=false;}
+}
+async function signedIn(){
+ // Las invitaciones desde la cámara del navegador abren un enlace con
+ // fragmento. El fragmento no llega al servidor HTTP, y se borra tras uso.
+ try{
+  if(location.hash.includes("reward=")){
+   const parsed=parseLink(location.href,"reward");
+   const saved=localStorage.getItem(KEY);
+   if(saved===parsed.id){
+    await restore();
+    await redeem(location.href);
+   }else{
+    enrollment();
+    note("Abra este QR desde la aplicación del equipo "+parsed.id+" antes de validar.");
+   }
+  }else if(location.hash.includes("join="))await join(location.href);
+  else await restore();
+ }catch(e){enrollment();showError(e);}
+}
+if(!firebaseConfigured)notConfigured();
+else onAuthStateChanged(auth,async user=>{
+ if(!user){try{await signInAnonymously(auth);}catch(e){$("app").innerHTML='<section class="card"><p class="warn">'+esc(shortError(e))+'</p></section>';}return;}
+ await signedIn();
 });
