@@ -35,7 +35,7 @@ export const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","
 export const routeFor = start => Array.from({length:9}, (_,i) => ((start-1+i)%9)+1);
 export const stationLabel = n => "E"+n+" · "+PLACES[n-1];
 export const teamRef = t => doc(db,"events",EVENT,"teams",t);
-export const rewardRef = (t,n) => doc(db,"events",EVENT,"rewards",t+"_E"+n);
+export const rewardRef = t => doc(db,"events",EVENT,"rewards",t);
 export const tokenRef = t => doc(db,"events",EVENT,"tokens",t);
 export const eventRef = () => doc(db,"events",EVENT);
 export const staffRef = uid => doc(db,"staff",uid);
