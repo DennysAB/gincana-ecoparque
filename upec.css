@@ -1,0 +1,22 @@
+/* Extensiones del diseño para la modalidad conectada */
+main{max-width:1120px;margin:0 auto}
+header h1,header p{max-width:1120px}
+.toolbar{display:flex;gap:16px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.toolbar p{margin:0}.compact{width:auto;min-width:125px}
+.admin-table-wrap{overflow-x:auto}
+.admin-table{width:100%;border-collapse:collapse;min-width:790px}
+.admin-table th,.admin-table td{padding:9px;border-bottom:1px solid #38546e;vertical-align:top;text-align:left}
+.admin-table td input,.admin-table td select{min-width:145px}
+.admin-table td select{min-width:220px}
+.qr-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:16px}
+.qr-card{border:1px solid #38546e;background:#0b1c2d;border-radius:12px;padding:14px}
+.qr-card h3{margin-top:0}
+.qr-card a{display:block;color:#9dd9ff;text-align:center;padding:9px}
+.qr-img{display:flex;align-items:center;justify-content:center;min-height:190px;background:white;border-radius:10px;padding:10px;width:fit-content;margin:12px auto}
+.qr-team{min-height:230px}
+.qr-img img,.qr-img canvas{max-width:100%;height:auto!important}
+.camera-reader{max-width:400px;margin:16px auto}
+.camera-reader:empty{display:none}
+button{touch-action:manipulation}
+.small{font-size:.9rem;color:#c2d2e0}
+@media(max-width:650px){.grid{grid-template-columns:repeat(3,minmax(0,1fr))}.admin-table{min-width:690px}}
