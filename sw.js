@@ -1,5 +1,7 @@
-const CACHE="ecoparque-v5";
-const ASSETS=["./","./index.html","./app.js","./style.css","./manifest.webmanifest","./icon.svg"];
+// Recursos locales de la interfaz; los servicios Firebase requieren Internet.
+const CACHE="gincana-upec-v6";
+const ASSETS=["./","./index.html","./equipo-v3.js","./firebase-core.js",
+ "./firebase-config.js","./style.css","./upec.css","./manifest.webmanifest","./icon.svg"];
 self.addEventListener("install",event=>event.waitUntil(
  caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting())
 ));
@@ -10,19 +12,12 @@ self.addEventListener("fetch",event=>{
  if(event.request.method!=="GET")return;
  const url=new URL(event.request.url);
  if(url.origin!==self.location.origin)return;
- if(/\/(organizacion\.html|admin\.js|guia\.html|plantillas\.html)$/.test(url.pathname))return;
+ if(/\/(organizacion\.html|organizacion-v3\.js|facilitador\.html|facilitador\.js)$/.test(url.pathname))return;
  event.respondWith((async()=>{
   try{
-   const response=await fetch(event.request);
-   if(response.ok){
-    const cache=await caches.open(CACHE);
-    await cache.put(event.request,response.clone());
-   }
-   return response;
-  }catch(error){
-   const cached=await caches.match(event.request,{ignoreSearch:true});
-   if(cached)return cached;
-   throw error;
-  }
+   const res=await fetch(event.request);
+   if(res.ok){const cache=await caches.open(CACHE);await cache.put(event.request,res.clone());}
+   return res;
+  }catch(error){const cached=await caches.match(event.request,{ignoreSearch:true});if(cached)return cached;throw error;}
  })());
 });
