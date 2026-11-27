@@ -20,3 +20,31 @@ header h1,header p{max-width:1120px}
 button{touch-action:manipulation}
 .small{font-size:.9rem;color:#c2d2e0}
 @media(max-width:650px){.grid{grid-template-columns:repeat(3,minmax(0,1fr))}.admin-table{min-width:690px}}
+
+
+/* Gincana UPEC: vista de misiones para los nueve equipos */
+.stations-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin:18px 0}
+.station-card{background:#091c2e;border:2px solid #50647a;border-radius:13px;padding:14px;min-height:168px}
+.station-card .station-number{font-weight:900;letter-spacing:.09em;font-size:1.05rem;margin:0 0 5px}
+.station-card strong{display:block;line-height:1.25}
+.station-card .station-state{margin:16px 0 0;font-size:.77rem;letter-spacing:.07em;font-weight:800;text-transform:uppercase}
+.station-card.done{border-color:#70dcb3;background:#103d38}
+.station-card.done .station-number{color:#70dcb3}
+.station-card.chosen{border:3px solid #f1c96a;background:#46371e;box-shadow:0 0 0 2px #947844}
+.station-card.chosen .station-number,.station-card.chosen .station-state{color:#ffe3a2}
+.station-card.locked{opacity:.67}
+.fragment{margin-top:10px;border-top:1px solid #4b8d78;padding-top:7px}
+.fragment small{display:block}
+.fragment strong{font-size:2rem;color:#b5ffe0;font-variant-numeric:tabular-nums}
+.final-code{font-size:clamp(1.2rem,5.3vw,2.4rem);font-weight:900;letter-spacing:.07em;text-align:center;overflow-wrap:anywhere;padding:18px 10px;background:#081a29;border:2px solid #d7b66c;border-radius:12px;font-variant-numeric:tabular-nums;user-select:all}
+.chest-graphic{display:flex;justify-content:center;padding:20px 0 5px}
+.marks{min-width:270px}
+.marks span{display:inline-block;border-radius:4px;font-size:.78rem;font-weight:800;padding:6px;margin:2px;border:1px solid #50647a}
+.marks .complete{color:#103d38;background:#98e7bb}
+.marks .current{background:#e5c06f;color:#142838}
+.marks .pending{background:#0b1c2d;color:#adb9c7}
+details{margin:12px 0}
+summary{cursor:pointer;padding:8px 0;font-weight:700}
+#reader video{border-radius:10px}
+#reader{overflow:hidden}
+@media(max-width:650px){.stations-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.station-card{padding:12px;min-height:160px}.qr-grid{grid-template-columns:1fr}.marks{min-width:225px}}
