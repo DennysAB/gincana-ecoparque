@@ -1,0 +1,127 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+    function staffExists() {
+      return signedIn() && exists(/databases/$(database)/documents/staff/$(request.auth.uid));
+    }
+    function staff() {
+      return get(/databases/$(database)/documents/staff/$(request.auth.uid)).data;
+    }
+    function isAdmin() {
+      return staffExists() && staff().role == "admin";
+    }
+    function isFacilitator() {
+      return staffExists() && staff().role == "facilitator" &&
+             staff().station is string && staff().station.matches('E[1-9]');
+    }
+    function eventLive() {
+      return get(/databases/$(database)/documents/events/current).data.status == "live";
+    }
+    function eventSetup() {
+      return get(/databases/$(database)/documents/events/current).data.status == "setup";
+    }
+    function activeStation() {
+      return resource.data.route[resource.data.step];
+    }
+    function onlyFields(keys) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
+    }
+    function validStart() {
+      return eventLive() && isFacilitator() &&
+        resource.data.step < 9 && resource.data.inProgress == null &&
+        activeStation() == staff().station &&
+        onlyFields(["inProgress","updatedAt"]) &&
+        request.resource.data.inProgress.station == staff().station &&
+        request.resource.data.inProgress.by == request.auth.uid &&
+        request.resource.data.inProgress.at == request.time &&
+        request.resource.data.updatedAt == request.time;
+    }
+    function validComplete(teamId) {
+      let station = activeStation();
+      let added = request.resource.data.completed.diff(resource.data.completed);
+      let secret = get(/databases/$(database)/documents/events/current/rewards/$(teamId)).data;
+      return eventLive() && isFacilitator() &&
+        resource.data.step < 9 &&
+        resource.data.inProgress != null &&
+        resource.data.inProgress.station == staff().station &&
+        resource.data.inProgress.by == request.auth.uid &&
+        station == staff().station &&
+        onlyFields(["completed","step","inProgress","updatedAt"]) &&
+        request.resource.data.step == resource.data.step + 1 &&
+        request.resource.data.inProgress == null &&
+        request.resource.data.updatedAt == request.time &&
+        added.affectedKeys().hasOnly([station]) &&
+        added.addedKeys().hasAll([station]) &&
+        request.resource.data.completed[station].fragment == secret.fragments[station] &&
+        request.resource.data.completed[station].by == request.auth.uid &&
+        request.resource.data.completed[station].at == request.time;
+    }
+    function validReturn() {
+      return eventLive() && isFacilitator() &&
+        resource.data.step == 9 && !resource.data.returned &&
+        resource.data.startKey == staff().station &&
+        onlyFields(["returned","returnedAt","updatedAt"]) &&
+        request.resource.data.returned == true &&
+        request.resource.data.returnedAt == request.time &&
+        request.resource.data.updatedAt == request.time;
+    }
+    function completeCode() {
+      let c = resource.data.completed;
+      return c.E1.fragment + c.E2.fragment + c.E3.fragment +
+             c.E4.fragment + c.E5.fragment + c.E6.fragment +
+             c.E7.fragment + c.E8.fragment + c.E9.fragment;
+    }
+    function validOpen() {
+      return eventLive() && isFacilitator() &&
+        resource.data.step == 9 && resource.data.returned == true &&
+        resource.data.openedAt == null &&
+        resource.data.startKey == staff().station &&
+        onlyFields(["openedAt","openedCode","updatedAt"]) &&
+        request.resource.data.openedCode is string &&
+        request.resource.data.openedCode.matches('[0-9]{18}') &&
+        request.resource.data.openedCode == completeCode() &&
+        request.resource.data.openedAt == request.time &&
+        request.resource.data.updatedAt == request.time;
+    }
+
+    // Crear la primera cuenta admin en Firebase Authentication y luego
+    // el documento staff/<uid> en Firebase Console; nunca desde el sitio público.
+    match /staff/{uid} {
+      allow get: if signedIn() && (request.auth.uid == uid || isAdmin());
+      allow list, create, update, delete: if isAdmin();
+    }
+
+    match /events/{eventId} {
+      allow get, list: if signedIn();
+      allow create, update, delete: if isAdmin();
+
+      match /teams/{teamId} {
+        // Solo información de juego; no guardar datos personales sensibles.
+        allow get, list: if signedIn();
+        allow create, delete: if isAdmin() && eventSetup();
+        allow update: if (isAdmin() && eventSetup()) ||
+                      validStart() || validComplete(teamId) ||
+                      validReturn() || validOpen();
+      }
+
+      match /rewards/{teamId} {
+        // Las recompensas completas jamás se entregan a participantes.
+        allow get: if isAdmin() || isFacilitator();
+        allow list: if isAdmin();
+        allow create, update, delete: if isAdmin() && eventSetup();
+      }
+
+      match /tokens/{teamId} {
+        // El token QR original solo es visible a la organización.
+        allow get, list, create, update, delete: if isAdmin();
+      }
+    }
+
+    match /{path=**} {
+      allow read, write: if false;
+    }
+  }
+}
