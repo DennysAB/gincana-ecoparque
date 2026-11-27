@@ -1,143 +1,104 @@
-import {auth,db,firebaseConfigured,setupNotice,$,esc,PLACES,TITLES,TASKS,
- teamRef,rewardRef,eventRef,roleFor,parseQr,sha256,datetime,errText} from "./firebase-core.js";
-import {signInWithEmailAndPassword,signOut,onAuthStateChanged} from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
-import {getDoc,onSnapshot,runTransaction,updateDoc,serverTimestamp} from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
+import {auth,db,firebaseConfigured,notConfigured,call,$,esc,STATIONS,stationName,
+ staffRef,eventRef,teamRef,facilitatorInvitationLink,rewardLink,parseLink,safeQr,installHelp,shortError} from "./firebase-core.js";
+import {signInAnonymously,onAuthStateChanged,signOut} from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
+import {getDoc,onSnapshot} from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
 
-let role=null,station=null,selected=null,teamData=null,stopTeam=null,stopEvent=null,eventData=null,scanner=null;
-function note(s){const n=$("notice");if(n)n.textContent=s;}
-function loginView(){
- $("app").innerHTML='<section class="card"><h2>Acceso de facilitador</h2><label>Correo</label><input id="email" type="email" autocomplete="username"><label>Contraseña</label><input id="password" type="password" autocomplete="current-password"><button id="login">Ingresar</button><p id="notice" role="status"></p></section>';
- $("login").onclick=async()=>{try{await signInWithEmailAndPassword(auth,$("email").value.trim(),$("password").value);}catch(e){note(errText(e));}};
+let user=null,identity=null,station=null,eventData=null,issued=null,activeTeams={},stopEvent=null;
+function note(t){if($("notice"))$("notice").textContent=t;}
+function error(e){note(shortError(e));}
+function cleanHash(){history.replaceState(null,"",location.pathname+location.search);}
+function welcome(){
+ $("app").innerHTML='<section class="card"><h2>Registro del facilitador</h2>'+
+ '<p>Escanee el QR privado asignado por el líder. Este vínculo habilitará exclusivamente su estación.</p>'+
+ '<label>Enlace del QR de invitación</label><input id="join-link" placeholder="Pegue aquí el enlace recibido">'+
+ '<button id="connect">Vincular mi estación</button><p id="notice" role="status"></p></section>'+installHelp();
+ $("connect").onclick=async()=>{
+  try{
+   const {station:s,token}=parseLink($("join-link").value,"facilitator");
+   await call("joinFacilitator",{station:s,token});cleanHash();await checkRole();
+  }catch(e){error(e);}
+ };
 }
-function shell(){
- const n=Number(station.slice(1));
- $("app").innerHTML='<div class="toolbar"><p><strong>Facilitador · '+esc(station)+'</strong> · '+esc(PLACES[n-1])+'</p><button id="logout" class="alt compact">Salir</button></div><p id="notice" role="status"></p><section class="card"><h2>Escanear QR del equipo</h2><p>Cuando el equipo llegue, escanee el QR mostrado por su líder. La aplicación comprobará que corresponde a esta estación.</p><button id="camera">Abrir cámara</button><div id="reader" class="camera-reader"></div><label>Alternativa: pegar enlace del QR</label><input id="manual" placeholder="https://.../index.html#team=A&key=..."><button id="manual-button" class="alt">Verificar enlace</button></section><div id="team-panel"></div>';
- $("logout").onclick=async()=>{await closeCamera();await signOut(auth);};
- $("camera").onclick=startCamera;
- $("manual-button").onclick=()=>choose($("manual").value.trim());
-}
-async function closeCamera(){
- if(!scanner)return;
- try{if(scanner.getState()===2)await scanner.stop();await scanner.clear();}catch(e){console.warn(e);}
- scanner=null;
-}
-async function startCamera(){
- if(scanner)return;
- if(typeof Html5Qrcode==="undefined"){note("No cargó el lector QR. Revise internet o pegue el enlace.");return;}
- try{
-  scanner=new Html5Qrcode("reader");
-  await scanner.start({facingMode:"environment"},{fps:10,qrbox:{width:240,height:240}},async value=>{
-   await closeCamera();
-   await choose(value);
-  },()=>{});
-  note("Enfoque el QR que aparece en el teléfono del líder.");
- }catch(e){note("No se pudo iniciar la cámara: "+errText(e));await closeCamera();}
-}
-async function choose(value){
- try{
-  const info=parseQr(value),snapshot=await getDoc(teamRef(info.team));
-  if(!snapshot.exists())throw Error("El equipo todavía no se ha registrado.");
-  const hash=await sha256(info.token);
-  if(hash!==snapshot.data().qrHash)throw Error("Este QR no corresponde al equipo registrado.");
-  if(stopTeam){stopTeam();stopTeam=null;}
-  selected=info.team;teamData=snapshot.data();
-  stopTeam=onSnapshot(teamRef(selected),s=>{
-   if(!s.exists()){note("Se eliminó el equipo.");return;}
-   teamData=s.data();renderTeam();
-  },e=>note(errText(e)));
-  note("QR verificado: equipo "+selected+".");
-  renderTeam();
- }catch(e){note(errText(e));}
-}
-function renderTeam(){
- const p=$("team-panel");if(!p||!teamData)return;
- const t=teamData;
- let h='<section class="card"><h2>Equipo '+esc(t.team)+' · '+esc(t.name)+'</h2><p><em>'+esc(t.slogan)+'</em></p><p>Estaciones completadas: <strong>'+t.step+' / 9</strong></p>';
- if(eventData?.status!=="live"){
-  h+='<p class="warn">El evento todavía no está activo o ya finalizó. No pueden registrarse validaciones.</p>';
- }else if(t.openedAt){
-  h+='<h3 class="ok">Cofre abierto</h3><p>Registro oficial: '+esc(datetime(t.openedAt))+'</p>';
- }else if(t.step===9){
-  if(station!==t.startKey)h+='<p>Este equipo completó sus nueve retos. Debe regresar a '+esc(t.startKey)+' · '+esc(PLACES[Number(t.startKey.slice(1))-1])+'.</p>';
-  else if(!t.returned){
-   h+='<p>El equipo terminó las nueve estaciones y ha regresado a su punto de partida.</p><button id="return-team">Confirmar retorno</button>';
-  }else{
-   h+='<p class="ok">Retorno confirmado. El equipo debe ordenar sus nueve fragmentos y presentar su código de 18 cifras.</p><label>Código final de 18 dígitos</label><input id="code18" type="text" inputmode="numeric" pattern="[0-9]{18}" maxlength="18" autocomplete="off" placeholder="000000000000000000"><button id="open-chest">Validar apertura del cofre</button>';
-  }
- }else{
-  const next=t.route[t.step];
-  if(next!==station){
-   h+='<p class="warn">Este equipo debe acudir primero a '+esc(next)+' · '+esc(PLACES[Number(next.slice(1))-1])+'. No se permite saltar estaciones.</p>';
-  }else if(!t.inProgress){
-   h+='<h3>'+esc(TITLES[Number(station.slice(1))-1])+'</h3><p>Se comprobará el reto presencialmente. Inicie cuando estén listos.</p><button id="begin-task">Iniciar desafío</button>';
-  }else if(t.inProgress.by!==auth.currentUser.uid){
-   h+='<p class="warn">Otro facilitador inició este reto. Solo esa cuenta puede validarlo.</p>';
-  }else{
-   h+='<h3>'+esc(TITLES[Number(station.slice(1))-1])+'</h3><p>'+esc(TASKS[Number(station.slice(1))-1])+'</p><p>Introduzca la validación solo después de comprobar físicamente que el equipo lo resolvió.</p><button id="finish-task">Reto comprobado · validar</button>';
-  }
+async function checkRole(){
+ if(!auth.currentUser)return;
+ const snap=await getDoc(staffRef(auth.currentUser.uid));
+ if(snap.exists()&&snap.data().role==="facilitator"&&STATIONS.includes(snap.data().station)){
+  station=snap.data().station;identity=snap.data();renderBase();return;
  }
- h+='</section>';p.innerHTML=h;
- if($("begin-task"))$("begin-task").onclick=beginTask;
- if($("finish-task"))$("finish-task").onclick=finishTask;
- if($("return-team"))$("return-team").onclick=markReturn;
- if($("open-chest"))$("open-chest").onclick=openChest;
+ if(location.hash.includes("join=")){
+  const {station:s,token}=parseLink(location.href,"facilitator");
+  await call("joinFacilitator",{station:s,token});
+  cleanHash();
+  const renewed=await getDoc(staffRef(auth.currentUser.uid));
+  if(renewed.exists()){station=renewed.data().station;identity=renewed.data();renderBase();return;}
+ }
+ welcome();
 }
-async function beginTask(){
+function renderBase(){
+ $("app").innerHTML='<section class="card"><small>Cuenta de facilitador vinculada</small>'+
+ '<h2>'+esc(station)+' · '+esc(stationName(station))+'</h2>'+
+ '<p>Responsable: <strong>'+esc(identity?.name||"Facilitador")+'</strong></p>'+
+ '<p>Cuando un equipo complete físicamente la misión, seleccione su identificación y genere su QR de validación.</p>'+
+ '<p class="warn">No genere el QR antes de comprobar que el equipo superó el reto.</p>'+
+ '<p id="notice" role="status"></p></section>'+
+ '<div id="missions"></div>'+installHelp();
+ if(stopEvent)stopEvent();
+ stopEvent=onSnapshot(eventRef(),snap=>{
+  eventData=snap.exists()?snap.data():null;
+  if(issued && !(eventData?.reservations?.[station]||[]).includes(issued.team)){
+   issued=null;note("El equipo escaneó su QR y recibió su fragmento. La estación quedó actualizada.");
+  }
+  renderMissions();
+ },error);
+}
+function renderMissions(){
+ const root=$("missions");if(!root)return;
+ const active=eventData?.status==="live";
+ const ids=eventData?.reservations?.[station]||[];
+ let s='<section class="card"><h2>Validaciones de '+esc(station)+'</h2>'+
+ '<p>Estado: <strong>'+esc(!eventData?"Esperando configuración":active?"En desarrollo":eventData.status==="setup"?"Aún no iniciada":"Finalizada")+'</strong></p>';
+ if(active){
+  s+='<p>Equipos asignados actualmente: <strong>'+esc(ids.join(", ")||"ninguno")+'</strong></p>';
+  if(ids.length){
+   s+='<label>Equipo que superó la misión</label><select id="team-select">'+ids.map(id=>'<option value="'+esc(id)+'">Equipo '+esc(id)+'</option>').join("")+'</select>'+
+   '<button id="issue">He comprobado la misión · Generar QR de validación</button>';
+  }else s+='<p>No hay equipos asignados a esta estación en este momento.</p>';
+ }else s+='<p>Los QR de validación solo pueden emitirse durante el evento.</p>';
+ s+='</section>';
+ if(issued&&active){
+  const link=rewardLink(issued.team,issued.station,issued.token);
+  s+='<section class="card"><h2>QR para el equipo '+esc(issued.team)+'</h2>'+
+   '<p>Muestre este código al equipo. <strong>El equipo debe escanearlo desde su propia aplicación</strong> para recibir dos dígitos y desbloquear la siguiente estación.</p>'+
+   '<div class="qr-img qr-team" id="reward-qr"></div>'+
+   '<button id="copy-reward" class="alt">Copiar enlace QR</button>'+
+   '<p class="small">Este QR es específico para el equipo '+esc(issued.team)+' y esta estación. Es de un solo uso; si caduca puede generar otro.</p></section>';
+ }
+ root.innerHTML=s;
+ if($("issue"))$("issue").onclick=generate;
+ if(issued&&$("reward-qr")){
+  const link=rewardLink(issued.team,issued.station,issued.token);
+  safeQr($("reward-qr"),link,218);
+  $("copy-reward").onclick=async()=>{
+   try{await navigator.clipboard.writeText(link);note("Enlace copiado. Compártalo únicamente con el equipo autorizado.");}
+   catch{prompt("Enlace del QR:",link);}
+  };
+ }
+}
+async function generate(){
+ const id=$("team-select")?.value;
+ if(!id){note("Seleccione el equipo que terminó su misión.");return;}
+ if(!confirm("¿Verificó personalmente que el equipo "+id+" cumplió la misión?"))return;
+ const button=$("issue");button.disabled=true;
  try{
-  await runTransaction(db,async trx=>{
-   const ref=teamRef(selected),s=await trx.get(ref);
-   if(!s.exists())throw Error("Equipo inexistente.");
-   const t=s.data();
-   if(t.route[t.step]!==station||t.step>=9||t.inProgress)throw Error("El equipo no está habilitado para comenzar en esta estación.");
-   trx.update(ref,{inProgress:{station,by:auth.currentUser.uid,at:serverTimestamp()},updatedAt:serverTimestamp()});
-  });
-  note("Desafío iniciado. Explique la consigna al equipo.");
- }catch(e){note(errText(e));}
+  issued=await call("issueProof",{team:id});
+  renderMissions();note("QR individual generado para el equipo "+id+".");
+ }catch(e){error(e);}finally{if(button.isConnected)button.disabled=false;}
 }
-async function finishTask(){
- if(!confirm("¿Ha comprobado personalmente que el equipo resolvió correctamente la prueba?"))return;
- try{
-  await runTransaction(db,async trx=>{
-   const ref=teamRef(selected),reward=rewardRef(selected,Number(station.slice(1)));
-   const s=await trx.get(ref);
-   const r=await trx.get(reward);
-   if(!s.exists()||!r.exists())throw Error("Faltan datos del equipo o sus recompensas.");
-   const t=s.data();
-   if(t.step>=9||t.route[t.step]!==station||t.inProgress?.by!==auth.currentUser.uid)throw Error("Este reto no está activo para su cuenta.");
-   const fragment=r.data().fragments[station];
-   if(!/^[0-9]{2}$/.test(fragment))throw Error("Fragmento de recompensa inválido.");
-   trx.update(ref,{["completed."+station]:{fragment,by:auth.currentUser.uid,at:serverTimestamp()},step:t.step+1,inProgress:null,updatedAt:serverTimestamp()});
-  });
-  note("Reto validado y fragmento entregado automáticamente al teléfono del equipo.");
- }catch(e){note(errText(e));}
-}
-async function markReturn(){
- if(!confirm("¿El equipo regresó físicamente a su estación inicial tras completar los nueve retos?"))return;
- try{await updateDoc(teamRef(selected),{returned:true,returnedAt:serverTimestamp(),updatedAt:serverTimestamp()});note("Retorno confirmado.");}
- catch(e){note(errText(e));}
-}
-async function openChest(){
- const code=$("code18").value.trim();
- if(!/^[0-9]{18}$/.test(code)){note("El código debe tener exactamente 18 dígitos.");return;}
- const expected=Array.from({length:9},(_,i)=>teamData.completed["E"+(i+1)]?.fragment||"").join("");
- if(code!==expected){note("Código incorrecto. Revisen el orden de los fragmentos E1–E9.");return;}
- if(!confirm("Código correcto. ¿Registrar oficialmente la apertura del cofre?"))return;
- try{await updateDoc(teamRef(selected),{openedCode:code,openedAt:serverTimestamp(),updatedAt:serverTimestamp()});note("¡Cofre abierto! Hora oficial registrada en Firestore.");}
- catch(e){note(errText(e));}
-}
-async function authenticated(u){
- try{
-  role=await roleFor(u.uid);
-  if(role.role!=="facilitator"||!/^E[1-9]$/.test(role.station||""))throw Error("Esta cuenta no tiene una estación de facilitación asignada.");
-  station=role.station;selected=null;teamData=null;shell();
-  stopEvent=onSnapshot(eventRef(),s=>{eventData=s.exists()?s.data():null;renderTeam();},e=>note(errText(e)));
- }catch(e){$("app").innerHTML='<section class="card"><p class="warn">'+esc(errText(e))+'</p><button id="logout">Cerrar sesión</button></section>';$("logout").onclick=()=>signOut(auth);}
-}
-if(!firebaseConfigured)setupNotice();
-else onAuthStateChanged(auth,u=>{
+if(!firebaseConfigured)notConfigured();
+else onAuthStateChanged(auth,async u=>{
+ user=u;
  if(stopEvent){stopEvent();stopEvent=null;}
- if(stopTeam){stopTeam();stopTeam=null;}
- closeCamera();
- if(u)authenticated(u);
- else{eventData=null;teamData=null;selected=null;loginView();}
+ if(!u){try{await signInAnonymously(auth);}catch(e){$("app").innerHTML='<section class="card"><p class="warn">'+esc(shortError(e))+'</p></section>';}return;}
+ try{await checkRole();}
+ catch(e){welcome();error(e);}
 });
