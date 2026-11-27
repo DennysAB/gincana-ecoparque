@@ -1,142 +1,159 @@
-import {auth,db,firebaseConfigured,setupNotice,$,esc,PLACES,TITLES,EVENT,
- routeFor,teamRef,tokenRef,rewardRef,eventRef,roleFor,teamLink,randomHex,randomPair,sha256,datetime,errText} from "./firebase-core.js";
+import {auth,db,firebaseConfigured,notConfigured,call,$,esc,TEAMS,STATIONS,PLACES,
+ eventRef,staffRef,teamInvitationLink,facilitatorInvitationLink,safeQr,installHelp,shortError,dateTime} from "./firebase-core.js";
 import {signInWithEmailAndPassword,signOut,onAuthStateChanged} from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
-import {collection,doc,getDoc,getDocs,setDoc,updateDoc,writeBatch,onSnapshot,serverTimestamp} from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
+import {collection,doc,getDoc,onSnapshot} from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
 
-let currentEvent=null, teams=[], tokens={}, stopTeams=null, stopEvent=null;
-const id=i=>String.fromCharCode(65+i);
-function message(s){const e=$("notice");if(e)e.textContent=s;}
-function loginView(){
- $("app").innerHTML='<section class="card"><h2>Acceso de organización</h2><p>Utilice el correo y contraseña autorizados en Firebase Authentication.</p><label>Correo institucional</label><input id="email" type="email" autocomplete="username"><label>Contraseña</label><input id="password" type="password" autocomplete="current-password"><button id="login">Ingresar</button><p id="notice" role="status"></p></section>';
- $("login").onclick=async()=>{try{await signInWithEmailAndPassword(auth,$("email").value.trim(),$("password").value);}catch(e){message(errText(e));}};
+let eventData=null,teams={},teamInvites={},facInvites={},unsub=[];
+function showError(e){const n=$("notice");if(n)n.textContent=shortError(e);}
+function showMessage(t){const n=$("notice");if(n)n.textContent=t;}
+function detach(){for(const fn of unsub)fn();unsub=[];}
+function login(){
+ $("app").innerHTML='<section class="card"><h2>Ingreso del líder</h2><p>Acceso exclusivo a la organización y seguimiento de la gincana.</p><label>Correo</label><input id="email" type="email" autocomplete="username"><label>Contraseña</label><input id="password" type="password" autocomplete="current-password"><button id="login">Ingresar</button><p id="notice" role="status"></p></section>';
+ $("login").onclick=async()=>{
+  const btn=$("login");btn.disabled=true;
+  try{await signInWithEmailAndPassword(auth,$("email").value.trim(),$("password").value);}
+  catch(e){showError(e);}finally{if(btn.isConnected)btn.disabled=false;}
+ };
 }
-function shell(){
- $("app").innerHTML='<div class="toolbar"><p><strong>Administración UPEC</strong> · <span id="state-label">Cargando...</span></p><button id="logout" class="alt compact">Cerrar sesión</button></div><p id="notice" role="status"></p><div id="setup-panel"></div><div id="qr-panel"></div><div id="score-panel"></div>';
+function layout(){
+ $("app").innerHTML='<div class="toolbar"><strong>Panel de control · Líder</strong><button class="alt compact" id="logout">Cerrar sesión</button></div><p id="notice" role="status"></p><div id="summary"></div><div id="editor"></div><div id="enrollment"></div><div id="leaderboard"></div>';
  $("logout").onclick=()=>signOut(auth);
 }
-function renderSetup(){
- const p=$("setup-panel");if(!p)return;
- const status=currentEvent?.status||"setup";
- if(status!=="setup"){
-  p.innerHTML='<section class="card"><h2>Evento '+esc(status==="live"?"en desarrollo":"finalizado")+'</h2><p>La asignación de estaciones queda bloqueada al comenzar la gincana.</p>'+(status==="live"?'<button id="end" class="alt">Finalizar evento</button>':'')+'</section>';
-  if($("end"))$("end").onclick=()=>changeStatus("finished");
+function fieldTable(title,items,prefix,defaultName){
+ return '<h3>'+title+'</h3><div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Identificador</th><th>Nombre</th></tr></thead><tbody>'+
+ items.map((id,i)=>'<tr><td><strong>'+esc(id)+'</strong> · '+(prefix==="fac" ? esc(PLACES[i]):"Equipo")+'</td><td><input id="'+prefix+esc(id)+'" maxlength="60" value="'+esc(defaultName(id))+'" placeholder="Escriba el nombre"></td></tr>').join("")+'</tbody></table></div>';
+}
+function buildForm(){
+ const existing=Boolean(eventData),status=eventData?.status||"none",p=$("editor");
+ if(!p)return;
+ if(existing&&status!=="setup"){p.innerHTML="";return;}
+ p.innerHTML='<section class="card"><h2>1. Crear equipos y asignar facilitadores</h2>'+
+ '<p>Introduzca exactamente los nueve nombres de equipos. Identifique al facilitador de cada estación. El sistema asignará automáticamente una estación inicial diferente a cada equipo.</p>'+
+ fieldTable("Equipos",TEAMS,"team",id=>teams[id]?.name||"")+
+ fieldTable("Facilitadores",STATIONS,"fac",id=>facInvites[id]?.name||"")+
+ '<button id="save-setup">'+(existing?"Guardar cambios de nombres":"Crear nueve equipos y códigos QR")+'</button>'+
+ '<p class="small">La distribución de estaciones se hace automáticamente. Después de generar los QR, cada equipo y facilitador debe escanear su invitación.</p></section>';
+ $("save-setup").onclick=async()=>{
+  const plan={
+   teams:TEAMS.map(id=>({name:$("team"+id).value.trim(),slogan:""})),
+   facilitators:STATIONS.map(station=>({name:$("fac"+station).value.trim()}))
+  };
+  if(plan.teams.some(x=>!x.name)||plan.facilitators.some(x=>!x.name)){
+   showMessage("Escriba los nueve nombres de equipos y los nueve nombres de facilitadores.");return;
+  }
+  const btn=$("save-setup");btn.disabled=true;
+  try{
+   await call(existing?"editSetup":"setupEvent",plan);
+   showMessage("Datos guardados. Distribuya los QR privados a sus destinatarios.");
+  }catch(e){showError(e);}finally{if(btn.isConnected)btn.disabled=false;}
+ };
+}
+function cardQr(title,subtitle,link,elId,claimed){
+ return '<div class="qr-card"><h3>'+esc(title)+'</h3><p>'+esc(subtitle)+'</p>'+
+ '<div class="qr-img" id="'+esc(elId)+'"></div>'+
+ '<p class="'+(claimed?"ok":"warn")+'">'+(claimed?"Dispositivo vinculado":"Pendiente de escaneo")+'</p>'+
+ '<button class="alt" data-copy="'+esc(elId)+'">Copiar enlace privado</button></div>';
+}
+function renderInvites(){
+ const root=$("enrollment");if(!root)return;
+ if(!eventData){root.innerHTML="";return;}
+ if(Object.keys(teamInvites).length!==9||Object.keys(facInvites).length!==9)return;
+ const teamCards=TEAMS.map(id=>{
+  const t=teams[id]||{},invite=teamInvites[id];
+  return cardQr("Equipo "+id,t.name+" · inicio "+(t.initial||"—")+" ("+PLACES[STATIONS.indexOf(t.initial)]+")",
+   teamInvitationLink(id,invite.token),"team-qr-"+id,Boolean(t.ownerUid));
+ }).join("");
+ const facCards=STATIONS.map((station,i)=>{
+  const invite=facInvites[station];
+  return cardQr("Facilitador "+station,invite.name+" · "+PLACES[i],
+   facilitatorInvitationLink(station,invite.token),"fac-qr-"+station,Boolean(invite.claimedUid));
+ }).join("");
+ root.innerHTML='<section class="card"><h2>2. Instalación y registro mediante QR</h2>'+
+ '<p>Primero entregue a cada equipo su QR individual. Luego entregue al facilitador el QR de la estación que le corresponde. Cada dispositivo debe abrir el enlace, instalar la aplicación y confirmar su vinculación.</p>'+
+ installHelp()+
+ '<details open><summary><strong>Nueve QR de los equipos</strong></summary><div class="qr-grid">'+teamCards+'</div></details>'+
+ '<details><summary><strong>Nueve QR de facilitadores</strong></summary><div class="qr-grid">'+facCards+'</div></details>'+
+ '<p class="warn">Los QR contienen enlaces privados de inscripción. No publique capturas en redes ni comparta enlaces entre equipos.</p></section>';
+ const copyMap={};
+ for(const id of TEAMS){const x=teamInvites[id],k="team-qr-"+id,l=teamInvitationLink(id,x.token);copyMap[k]=l;safeQr($(k),l,176);}
+ for(const station of STATIONS){const x=facInvites[station],k="fac-qr-"+station,l=facilitatorInvitationLink(station,x.token);copyMap[k]=l;safeQr($(k),l,176);}
+ root.querySelectorAll("[data-copy]").forEach(btn=>btn.onclick=async()=>{
+  const link=copyMap[btn.dataset.copy];
+  try{await navigator.clipboard.writeText(link);btn.textContent="Copiado";}catch{prompt("Copie el enlace privado:",link);}
+ });
+}
+function renderSummary(){
+ const root=$("summary");if(!root)return;
+ if(!eventData){
+  root.innerHTML='<section class="card"><h2>Gincana UPEC</h2><p>Evento aún no configurado. Ingrese los nombres de los equipos y los facilitadores para obtener los QR de instalación.</p></section>';
   return;
  }
- p.innerHTML='<section class="card"><h2>1. Asignación de equipos y estaciones</h2><p>Ingrese el nombre y el eslogan de los nueve equipos. Puede cambiar la estación inicial en cada fila; cada equipo debe comenzar en una estación diferente. El circuito siempre avanza E1 → E2 → ... → E9 → E1.</p><div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Equipo</th><th>Nombre</th><th>Eslogan</th><th>Estación inicial</th></tr></thead><tbody>'+Array.from({length:9},(_,i)=>{const t=teams.find(x=>x.team===id(i))||{};return '<tr><td><strong>'+id(i)+'</strong></td><td><input id="name'+i+'" maxlength="60" value="'+esc(t.name||"")+'" placeholder="Nombre del equipo"></td><td><input id="slogan'+i+'" maxlength="120" value="'+esc(t.slogan||"")+'" placeholder="Eslogan"></td><td><select id="station'+i+'">'+PLACES.map((x,j)=>'<option value="'+(j+1)+'" '+((t.startKey||("E"+(i+1)))==="E"+(j+1)?"selected":"")+'>'+"E"+(j+1)+" · "+esc(x)+'</option>').join("")+'</select></td></tr>';}).join("")+'</tbody></table></div><button id="save">Guardar equipos y generar QR</button><p class="warn">No pulse «Iniciar» hasta comprobar los nueve QR y la identificación de cada facilitador.</p><button id="begin" class="alt" '+(teams.length===9?"":"disabled")+'>Iniciar evento</button></section>';
- $("save").onclick=saveTeams;
- $("begin").onclick=()=>changeStatus("live");
+ const linkedTeams=Object.values(teams).filter(t=>Boolean(t.ownerUid)).length;
+ const linkedFac=Object.values(facInvites).filter(t=>Boolean(t.claimedUid)).length;
+ const active=eventData.status==="live";
+ root.innerHTML='<section class="card"><h2>Estado del evento</h2>'+
+ '<p><strong>'+esc(eventData.status==="setup"?"Preparación":active?"En ejecución":"Finalizado")+'</strong></p>'+
+ '<p>Equipos inscritos: <strong>'+linkedTeams+'/9</strong> · Facilitadores vinculados: <strong>'+linkedFac+'/9</strong></p>'+
+ (eventData.winner?'<p class="ok"><strong>GANADOR: '+esc(eventData.winner.team)+' · '+esc(eventData.winner.name)+'</strong> · '+esc(dateTime(eventData.winner.at))+'</p>':"")+
+ (eventData.status==="setup"?'<button id="start-game" '+(linkedTeams===9&&linkedFac===9?"":"disabled")+'>Iniciar gincana</button>':
+ active?'<button id="finish-game" class="alt">Finalizar evento</button>':"")+
+ '<p class="small">Se exige que estén vinculados los nueve equipos y los nueve facilitadores antes de iniciar.</p></section>';
+ if($("start-game"))$("start-game").onclick=async()=>{
+  if(!confirm("¿Iniciar la gincana y activar las estaciones asignadas?"))return;
+  try{await call("startEvent");showMessage("Gincana iniciada.");}catch(e){showError(e);}
+ };
+ if($("finish-game"))$("finish-game").onclick=async()=>{
+  if(!confirm("¿Finalizar definitivamente la gincana?"))return;
+  try{await call("finishEvent");showMessage("Gincana finalizada.");}catch(e){showError(e);}
+ };
 }
-async function saveTeams(){
- const values=Array.from({length:9},(_,i)=>({team:id(i),name:$("name"+i).value.trim(),slogan:$("slogan"+i).value.trim(),start:Number($("station"+i).value)}));
- if(values.some(v=>!v.name||!v.slogan)){alert("Complete nombres y eslóganes de los nueve equipos.");return;}
- if(new Set(values.map(v=>v.start)).size!==9){alert("Cada equipo debe tener una estación inicial distinta.");return;}
- const btn=$("save");btn.disabled=true;
+function renderLeaderboard(){
+ const root=$("leaderboard");if(!root||!eventData){if(root)root.innerHTML="";return;}
+ const arr=TEAMS.map(id=>teams[id]).filter(Boolean);
+ const sorted=[...arr].sort((a,b)=>{
+  if(a.chestAt&&!b.chestAt)return -1;
+  if(b.chestAt&&!a.chestAt)return 1;
+  if(a.chestAt&&b.chestAt)return a.chestAt.toMillis()-b.chestAt.toMillis();
+  return b.count-a.count||a.id.localeCompare(b.id);
+ });
+ const reservations=eventData.reservations||{};
+ root.innerHTML='<section class="card"><h2>3. Avance en tiempo real</h2>'+
+ '<p>El estado se actualiza al escanear un QR de validación. Una estación puede tener más de un equipo cuando las alternativas pendientes estén ocupadas.</p>'+
+ '<div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Equipo</th><th>Inicio</th><th>Estación activa</th><th>Progreso</th><th>Registro por estación</th><th>Cofre</th></tr></thead><tbody>'+
+ sorted.map(t=>'<tr><td><strong>'+esc(t.id)+'</strong><p>'+esc(t.name)+'</p></td><td>'+esc(t.initial)+'</td>'+
+ '<td>'+esc(t.current? t.current+" · "+PLACES[STATIONS.indexOf(t.current)]:"Completadas")+'</td>'+
+ '<td><strong>'+t.count+'/9</strong></td>'+
+ '<td class="marks">'+STATIONS.map(s=>'<span class="'+(t.completed?.[s]?"complete":t.current===s?"current":"pending")+'">'+s+'</span>').join(" ")+'</td>'+
+ '<td>'+esc(t.chestAt?dateTime(t.chestAt):"Pendiente")+'</td></tr>').join("")+
+ '</tbody></table></div>'+
+ '<h3>Distribución actual prevista</h3><div class="grid">'+STATIONS.map(s=>'<div class="tile"><small>'+s+'</small><strong>'+esc((reservations[s]||[]).join(", ")||"Libre")+'</strong></div>').join("")+'</div>'+
+ '</section>';
+}
+function rerender(){
+ renderSummary();buildForm();renderInvites();renderLeaderboard();
+}
+async function authorized(user){
  try{
-  const evt=await getDoc(eventRef());
-  if(evt.exists()&&evt.data().status!=="setup")throw Error("El evento ya ha comenzado: no se pueden reasignar equipos.");
-  if(!evt.exists())await setDoc(eventRef(),{title:"Gincana turística UPEC",venue:"Centro Deportivo de la UPEC",status:"setup",createdAt:serverTimestamp(),updatedAt:serverTimestamp()});
-  const batch=writeBatch(db);
-  const usedCodes=new Set();
-  for(const t of values){
-   const tr=await getDoc(tokenRef(t.team)),rr=await getDoc(rewardRef(t.team));
-   const token=tr.exists()?tr.data().token:randomHex();
-   let fragments;
-   if(rr.exists()){fragments=rr.data().fragments;}
-   else{
-    let code;
-    do{
-     fragments=Object.fromEntries(Array.from({length:9},(_,i)=>["E"+(i+1),randomPair()]));
-     code=Object.values(fragments).join("");
-    }while(usedCodes.has(code));
-    usedCodes.add(code);
-   }
-   const data={
-    team:t.team,name:t.name,slogan:t.slogan,startKey:"E"+t.start,
-    route:routeFor(t.start).map(n=>"E"+n),qrHash:await sha256(token),
-    completed:{},inProgress:null,step:0,returned:false,returnedAt:null,
-    openedAt:null,openedCode:null,updatedAt:serverTimestamp()
-   };
-   const existing=teams.find(x=>x.team===t.team);
-   if(!existing)data.createdAt=serverTimestamp();
-   batch.set(teamRef(t.team),data,{merge:true});
-   if(!tr.exists())batch.set(tokenRef(t.team),{team:t.team,token,createdAt:serverTimestamp()});
-   if(!rr.exists())batch.set(rewardRef(t.team),{team:t.team,fragments,createdAt:serverTimestamp()});
-  }
-  await batch.commit();
-  message("Se guardaron los nueve equipos, las estaciones iniciales y sus QR.");
-  await loadTokens();
- }catch(e){message(errText(e));}finally{btn.disabled=false;}
-}
-async function loadTokens(){
- if(!firebaseConfigured)return;
- try{
-  const ss=await getDocs(collection(db,"events",EVENT,"tokens"));
-  tokens=Object.fromEntries(ss.docs.map(d=>[d.id,d.data().token]));
-  renderQrs();
- }catch(e){message(errText(e));}
-}
-function renderQrs(){
- const p=$("qr-panel");if(!p)return;
- if(teams.length!==9||Object.keys(tokens).length!==9){p.innerHTML="";return;}
- p.innerHTML='<section class="card"><h2>2. QR de los nueve líderes</h2><p>Entregue a cada líder únicamente el enlace o QR de su equipo. Debe abrir su enlace en el teléfono que llevará durante la gincana y mostrar el QR a cada facilitador.</p><div class="qr-grid">'+teams.map(t=>'<div class="qr-card"><h3>Equipo '+esc(t.team)+'</h3><p>'+esc(t.name)+'<small> · '+esc(t.startKey)+'</small></p><div class="qr-img" id="qr'+esc(t.team)+'"></div><button class="alt" data-copy="'+esc(t.team)+'">Copiar enlace</button><a target="_blank" rel="noopener noreferrer" href="'+esc(teamLink(t.team,tokens[t.team]))+'">Abrir enlace</a></div>').join("")+'</div><button id="export-qr" class="alt">Descargar respaldo privado de enlaces (JSON)</button></section>';
- for(const t of teams){
-  const node=$("qr"+t.team);
-  if(node&&typeof QRCode!=="undefined")new QRCode(node,{text:teamLink(t.team,tokens[t.team]),width:170,height:170,correctLevel:QRCode.CorrectLevel.M});
+  const snap=await getDoc(staffRef(user.uid));
+  if(!snap.exists()||!["leader","admin"].includes(snap.data().role))throw Error("Esta cuenta no tiene permiso de líder.");
+  layout();
+  unsub.push(onSnapshot(eventRef(),s=>{eventData=s.exists()?s.data():null;rerender();},showError));
+  unsub.push(onSnapshot(collection(db,"events","current","teams"),s=>{
+   teams=Object.fromEntries(s.docs.map(d=>[d.id,d.data()]));rerender();
+  },showError));
+  unsub.push(onSnapshot(collection(db,"events","current","teamInvites"),s=>{
+   teamInvites=Object.fromEntries(s.docs.map(d=>[d.id,d.data()]));rerender();
+  },showError));
+  unsub.push(onSnapshot(collection(db,"events","current","facInvites"),s=>{
+   facInvites=Object.fromEntries(s.docs.map(d=>[d.id,d.data()]));rerender();
+  },showError));
+ }catch(e){
+  $("app").innerHTML='<section class="card"><p class="warn">'+esc(shortError(e))+'</p><button id="logout">Cerrar sesión</button></section>';
+  $("logout").onclick=()=>signOut(auth);
  }
- p.querySelectorAll("[data-copy]").forEach(btn=>btn.onclick=async()=>{
-  const t=btn.dataset.copy;
-  try{await navigator.clipboard.writeText(teamLink(t,tokens[t]));btn.textContent="Copiado";}catch{prompt("Copie el enlace:",teamLink(t,tokens[t]));}
- });
- $("export-qr").onclick=()=>downloadBackup();
 }
-function downloadBackup(){
- const payload={venue:"Centro Deportivo de la UPEC",createdAt:new Date().toISOString(),
-  teams:teams.map(t=>({team:t.team,name:t.name,slogan:t.slogan,startKey:t.startKey,url:teamLink(t.team,tokens[t.team])}))};
- const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"});
- const a=document.createElement("a"),u=URL.createObjectURL(blob);
- a.href=u;a.download="RESPALDO-PRIVADO-QR-GINCANA-UPEC.json";a.click();
- setTimeout(()=>URL.revokeObjectURL(u),1500);
-}
-function renderScore(){
- const p=$("score-panel");if(!p)return;
- if(!teams.length){p.innerHTML="";return;}
- const ordered=[...teams].sort((a,b)=>{
-  if(a.openedAt&&!b.openedAt)return -1;
-  if(b.openedAt&&!a.openedAt)return 1;
-  if(a.openedAt&&b.openedAt)return a.openedAt.toMillis()-b.openedAt.toMillis();
-  return b.step-a.step || a.team.localeCompare(b.team);
- });
- p.innerHTML='<section class="card"><h2>3. Seguimiento en tiempo real</h2><p>Los resultados se registran desde los teléfonos de los facilitadores. La clasificación por llegada se basa en la hora de apertura validada en Firestore.</p><div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Equipo</th><th>Nombre</th><th>Inicio</th><th>Avance</th><th>Situación</th><th>Apertura</th></tr></thead><tbody>'+ordered.map(t=>'<tr><td>'+esc(t.team)+'</td><td>'+esc(t.name)+'</td><td>'+esc(t.startKey)+'</td><td>'+t.step+'/9</td><td>'+esc(t.openedAt?"COFRE ABIERTO":t.returned?"Retornó":t.inProgress?"En "+t.inProgress.station:t.step===9?"Debe regresar":"En recorrido")+'</td><td>'+esc(datetime(t.openedAt))+'</td></tr>').join("")+'</tbody></table></div></section>';
-}
-async function changeStatus(status){
- if(status==="live" && teams.length!==9){alert("Primero registre los nueve equipos.");return;}
- const warning=status==="live"?"¿Iniciar la gincana y bloquear la asignación de estaciones?":"¿Finalizar el evento? No se permitirán nuevas validaciones.";
- if(!confirm(warning))return;
- try{await updateDoc(eventRef(),{status,updatedAt:serverTimestamp()});message("Estado actualizado: "+status);}
- catch(e){message(errText(e));}
-}
-async function authenticated(u){
- try{
-  const role=await roleFor(u.uid);
-  if(role.role!=="admin")throw Error("La cuenta no tiene el rol de organizador.");
-  shell();
-  stopEvent=onSnapshot(eventRef(),snapshot=>{
-   currentEvent=snapshot.exists()?snapshot.data():null;
-   $("state-label").textContent=currentEvent?.status||"Pendiente de creación";
-   renderSetup();
-  },e=>message(errText(e)));
-  stopTeams=onSnapshot(collection(db,"events",EVENT,"teams"),snapshot=>{
-   teams=snapshot.docs.map(d=>d.data()).sort((a,b)=>a.team.localeCompare(b.team));
-   renderSetup();renderScore();renderQrs();
-   if(teams.length===9&&Object.keys(tokens).length!==9)loadTokens();
-  },e=>message(errText(e)));
-  await loadTokens();
- }catch(e){$("app").innerHTML='<section class="card"><p class="warn">'+esc(errText(e))+'</p><button id="logout">Cerrar sesión</button></section>';$("logout").onclick=()=>signOut(auth);}
-}
-if(!firebaseConfigured)setupNotice();
-else onAuthStateChanged(auth,u=>{
- if(stopEvent){stopEvent();stopEvent=null;}
- if(stopTeams){stopTeams();stopTeams=null;}
- if(u)authenticated(u);
- else{currentEvent=null;teams=[];tokens={};loginView();}
+if(!firebaseConfigured)notConfigured();
+else onAuthStateChanged(auth,user=>{
+ detach();eventData=null;teams={};teamInvites={};facInvites={};
+ if(user)authorized(user);else login();
 });
