@@ -1,112 +1,144 @@
 # Gincana turística UPEC — Centro Deportivo
 
-**Versión conectada v3**: nueve estaciones, nueve equipos, códigos QR y avance en tiempo real con Firebase Authentication y Cloud Firestore. Publicada mediante GitHub Pages.
+**Versión 4 | Tres perfiles, códigos QR y estaciones dinámicas**
 
-> IMPORTANTE: el código de la web está preparado, pero **no funcionará sin un proyecto Firebase real y sin publicar las reglas**. La configuración se entrega vacía intencionadamente; no se han creado proyectos, usuarios ni bases de datos en nombre del usuario.
+Repositorio público del frontend PWA. Backend transaccional: **Firebase Authentication + Firestore + Cloud Functions (2.ª generación)**. La aplicación NO está habilitada hasta conectar Firebase y desplegar las funciones.
 
-## Direcciones
+## Accesos
 
-- Equipo / líder: https://dennysab.github.io/gincana-ecoparque/
-- Organización: https://dennysab.github.io/gincana-ecoparque/organizacion.html
-- Facilitador: https://dennysab.github.io/gincana-ecoparque/facilitador.html
+- **Líder:** https://dennysab.github.io/gincana-ecoparque/organizacion.html
+- **Facilitadores:** https://dennysab.github.io/gincana-ecoparque/facilitador.html
+- **Equipos:** https://dennysab.github.io/gincana-ecoparque/
 
-## Estaciones UPEC
+Los QR individuales se generan dentro del panel del líder y del facilitador, no se guardan en archivos públicos.
 
-| Código | Ubicación | Prueba |
-|---|---|---|
-| E1 | Cancha de fútbol 1 | El pasaporte destruido |
-| E2 | Cancha de fútbol 2 (1) | La maleta imposible |
-| E3 | Cancha de básquet 1 | El mapa de las siete piezas |
-| E4 | Cancha de básquet 2 | La torre del explorador |
-| E5 | Ágora 1 | La ruta que nadie encuentra |
-| E6 | Ágora 2 | El espejo del espía |
-| E7 | Parqueadero | Operación silencio absoluto |
-| E8 | Salón | El robo de la brújula dorada |
-| E9 | Cancha de fútbol 2 (2) | La bóveda de los nueve secretos |
+## Ubicaciones
 
-**Señalización obligatoria:** diferenciar físicamente E2 y E9 dentro de la cancha de fútbol 2.
+| Código | Ubicación |
+|---|---|
+| E1 | Cancha de fútbol 1 |
+| E2 | Cancha de fútbol 2 (1) |
+| E3 | Cancha de básquet 1 |
+| E4 | Cancha de básquet 2 |
+| E5 | Ágora 1 |
+| E6 | Ágora 2 |
+| E7 | Parqueadero |
+| E8 | Salón |
+| E9 | Cancha de fútbol 2 (2) |
 
-## 1. Crear y configurar Firebase (tarea del administrador propietario)
+Marcar claramente **E2** y **E9** en sectores diferentes de la cancha de fútbol 2.
 
-1. Cree un proyecto en https://console.firebase.google.com/ y registre una **aplicación web**.
-2. Habilite **Cloud Firestore** en modo Native/Standard y configure la ubicación/región. Puede existir consumo o facturación según las cuotas del proyecto.
-3. En **Authentication → Sign-in method**, habilite **Correo electrónico/contraseña** para organizador y facilitadores, y **Anónimo** para los teléfonos de los líderes.
-4. En **Authentication → Settings → Authorized domains**, incluya `dennysab.github.io` si aún no aparece. No use contraseñas triviales.
-5. En configuración de la aplicación web, copie los valores `apiKey`, `authDomain`, `projectId` y `appId` y **edite** `firebase-config.js`. Estos identificadores son configuración de cliente, **no** claves privadas administrativas.
-6. En **Cloud Firestore → Rules**, sustituya las reglas predeterminadas por el contenido íntegro de `firestore.rules` y **publíquelas**. **No** use reglas de prueba con escritura libre en producción.
-7. En **Authentication → Users**, cree **una cuenta de organizador** y **nueve cuentas de facilitador** con contraseñas diferentes. Registre el UID exacto de cada cuenta.
-8. En **Firestore → Data**, cree la colección `staff`: documento con ID igual al UID de la persona responsable y campo `role` (string) igual a `admin`; nueve documentos adicionales, uno por UID del facilitador, con `role` (string) = `facilitator` y `station` (string) = `E1`, `E2`, ..., `E9` respectivamente. Los documentos iniciales se crean desde Firebase Console porque las reglas impiden que la web se autoproclame administradora.
-9. Compruebe la conexión y los permisos con las cuentas de prueba antes de crear los equipos definitivos.
+## Funcionamiento de la gincana
 
-**No comparta aquí contraseñas, credenciales de servicio ni claves privadas de Firebase.**
+**1. Preparación del líder.** Inicia sesión con correo y contraseña, introduce los **nueve nombres de equipos** y asigna el nombre de un **facilitador para cada estación**. Al guardar, el servidor crea nueve invitaciones QR individuales de equipo y nueve de facilitador, recompensas privadas y una asignación inicial aleatoria de **una estación distinta para cada equipo**. El líder entrega el QR correcto a cada equipo y facilitador.
 
-## 2. Preparación de equipos en el evento
+**2. Instalación.** Cada persona escanea su QR de invitación desde el teléfono donde instalará la PWA. El enlace abre la web y la vincula con el equipo o estación. Luego debe usar las opciones del navegador: **Safari → Compartir → Añadir a pantalla de inicio** o **Chrome → Instalar / Añadir a pantalla de inicio**. **Un QR no instala automáticamente la aplicación.** En iOS algunos datos pueden quedar separados entre Safari y la PWA instalada; si esto ocurre, se debe **volver a escanear la misma invitación durante la preparación**.
 
-1. El organizador entra en `organizacion.html` con su cuenta de organizador.
-2. Registra **nueve equipos A–I**, sus nombres y eslóganes. Puede cambiar la **estación inicial** de cada equipo en el formulario (deben ser nueve estaciones distintas).
-3. Pulsa **Guardar equipos y generar QR**. El sistema guarda equipos, recompensas de dos dígitos por estación y tokens QR de 128 bits en Firestore. Los enlaces QR no contienen las recompensas.
-4. Copia a cada líder **solo el enlace privado de su equipo**. El líder lo abre desde su teléfono y muestra el QR de su pantalla a los facilitadores. También se pueden visualizar los nueve QR en el panel.
-5. Descarga el archivo JSON privado de respaldo de enlaces y lo conserva fuera del repositorio público.
-6. Después de verificar dispositivos, roles y carteles, pulsa **Iniciar evento**. A partir de ese momento no se permite cambiar la estación inicial.
+**3. Inicio.** El líder comprueba que aparecen **9/9 equipos** y **9/9 facilitadores vinculados**. Pulsa *Iniciar gincana*. Antes de ello, los equipos ya pueden ver las nueve estaciones, pero no iniciar misiones. Cada equipo identifica su estación inicial marcada.
 
-## 3. Trabajo de facilitadores
+**4. Misión.** El equipo llega al lugar indicado; el facilitador explica presencialmente la misión y proporciona los materiales. **Solo cuando confirma físicamente que ha sido superada**, selecciona el equipo que corresponde y pulsa *Generar QR de validación*. El QR contiene un token aleatorio de 48 caracteres hexadecimales, válido **una sola vez** y durante **30 minutos** (la prueba no tiene límite de tiempo; si el QR caduca, el facilitador genera otro).
 
-1. Cada facilitador entra a `facilitador.html` con **su propia cuenta**, autorizada solo para la estación que se le asignó.
-2. Escanea el **QR del equipo** usando la cámara. Si el permiso de cámara no está disponible, puede pegar el enlace del QR como alternativa.
-3. La app comprueba el token del equipo y si su ruta circular realmente lo conduce a esa estación.
-4. Pulsa **Iniciar desafío** y explica la prueba. Tras comprobar físicamente la solución, pulsa **Reto comprobado · validar**.
-5. Firestore guarda la hora del registro y libera **solo el par de dígitos correspondiente a esa estación**, visible inmediatamente en el teléfono del equipo.
-6. El equipo se desplaza a la siguiente estación circular. El orden depende del inicio asignado: E1 → ... → E9 → E1. Cada equipo visita exactamente las nueve estaciones.
+**5. Recompensa.** El equipo escanea el QR **desde el lector de su propia aplicación**. Una Cloud Function verifica que el teléfono pertenece al equipo correcto, la estación es la actual, el QR es válido, no ha sido utilizado y el evento está activo. En una transacción única, marca la misión como completada, revela el **fragmento de dos dígitos** y asigna la siguiente estación aún no visitada.
 
-**Sin facilitador, el equipo no puede avanzar oficialmente.** Las validaciones están limitadas por `firestore.rules` al rol, la estación asignada, el orden del recorrido y el estado del reto.
+**6. Asignación adaptativa.** En la siguiente misión se escoge **aleatoriamente entre las estaciones pendientes que tienen menor cantidad de equipos asignados**. El servidor mantiene reservas en Firestore para evitar asignaciones simultáneas conflictivas. Si todas las estaciones pendientes están ocupadas, se permite que coincidan dos o más equipos. No hay garantía matemática de evitar todo choque, porque los retos duran tiempos distintos.
 
-## 4. Retorno y apertura del cofre
+**7. Cofre.** Al completar las nueve estaciones, la aplicación muestra los nueve fragmentos y el **código completo de 18 dígitos**, concatenado en orden E1–E9. Aparece un cofre digital para ingresar el código. La función del servidor lo verifica y registra la apertura. **Gana el primer equipo que registre correctamente su apertura en la transacción oficial**. Si varios lo intentan a la vez, solo un equipo puede ocupar el campo \`winner\` del evento. El líder observa el progreso y la identidad del ganador en tiempo real.
 
-1. Tras nueve estaciones, cada equipo regresa a su **estación inicial**.
-2. El facilitador de esa estación escanea su QR y pulsa **Confirmar retorno**.
-3. El líder dispone de los nueve pares de dígitos, presentados en orden de visita. Los ordena de E1 a E9 para construir un código de **18 dígitos**.
-4. En la estación inicial, el facilitador introduce el código de 18 dígitos y confirma la apertura. Las reglas de Firestore verifican el código exacto antes de registrar `openedAt`.
-5. El panel del organizador muestra el resultado y la hora registrada por el servidor.
+**Privacidad de retos:** a los equipos se les muestra **solo el nombre de las nueve ubicaciones, el estado de la estación y sus fragmentos conseguidos**. No se publican consignas, respuestas, materiales ni plantillas en la app de los equipos.
 
-**Ganador:** el primer equipo con apertura del cofre registrada oficialmente. Si hay resultados coincidentes o incidentes técnicos, la organización decide con evidencia presencial; la hora de los dispositivos no determina el ganador.
+## Preparación obligatoria en Firebase
 
-## 5. Estructura de Firestore
+> No se ha creado ni conectado un proyecto Firebase por parte de ChatGPT. Los archivos están disponibles en GitHub, pero todavía es necesaria su configuración, despliegue y prueba de campo.
 
-```text
-staff/{uid}                         -> role: admin | facilitator; station: E1...E9
-events/current                     -> status: setup | live | finished
-events/current/teams/A...I        -> nombre, eslogan, ruta, avance y pares ya ganados
-events/current/rewards/A...I      -> 9 pares secretos del equipo (solo personal autorizado)
-events/current/tokens/A...I       -> token QR privado (solo organizador)
-```
+### A. Proyecto y facturación
 
-Las reglas requieren usuarios autenticados para leer el evento. Los teléfonos de equipo se autentican de forma anónima y **son de solo lectura**; la escritura de avances corresponde a facilitadores autorizados. No se guardan nombres de estudiantes ni información sensible.
+1. Entrar a https://console.firebase.google.com/ y **crear un proyecto** de Firebase.
+2. Crear una **aplicación web**, registrar \`dennysab.github.io\` entre los dominios autorizados en Authentication (si no está incluido).
+3. Crear **Cloud Firestore**.
+4. Activar en Firebase Authentication los proveedores **Correo electrónico/contraseña** (líder) y **Anónimo** (facilitadores/equipos).
+5. Para **desplegar Cloud Functions se requiere el plan Blaze**, con cuenta de facturación. Confirmar costes, cuotas y alertas de presupuesto antes de activarlo. No se han producido cargos desde este repositorio.
 
-## 6. Prueba obligatoria antes del evento
+### B. Configuración pública del frontend
 
-- Crear nueve cuentas de facilitador, cada una con estación diferente; comprobar que E1 **no puede validar E2**.
-- Registrar nueve equipos de prueba; verificar asignaciones iniciales únicas y QR diferentes.
-- Escanear QR de prueba; confirmar rechazo de un código manipulado y rechazo de una estación fuera de secuencia.
-- Completar nueve estaciones en orden desde un inicio distinto de E1, verificando el retorno al inicio.
-- Comprobar que el código final tiene 18 dígitos, que un código incorrecto no abre el cofre y que uno correcto sí lo registra.
-- Probar escaneo en los teléfonos reales, especialmente permisos de cámara en iPhone y Android.
-- Verificar que todos los dispositivos tienen Internet estable en cada una de las **nueve ubicaciones**.
-- Tras las pruebas, crear un evento real limpio en un proyecto Firebase separado o limpiar **manualmente y con cuidado** los documentos de prueba antes de comenzar. No reutilizar progresos de pruebas.
+Copiar desde Firebase Console → Configuración del proyecto → Aplicación web estos valores y colocarlos en **\`firebase-config.js\`**:
 
-## Consideraciones técnicas
+\`\`\`js
+export const firebaseConfig = {
+  apiKey: "API_KEY_DE_LA_APLICACION_WEB",
+  authDomain: "PROYECTO.firebaseapp.com",
+  projectId: "ID_DEL_PROYECTO",
+  appId: "APP_ID_DE_LA_APLICACION_WEB"
+};
+\`\`\`
 
-- GitHub Pages aloja el código, pero no proporciona backend. Firebase Firestore proporciona sincronización en tiempo real y reglas de autorización.
-- El escaneo QR usa `html5-qrcode` (2.3.8), y la generación QR usa `qrcodejs` (1.0.0), cargados de CDN. El acceso a la cámara requiere HTTPS y permiso del usuario.
-- El SDK Firebase Web se carga de `www.gstatic.com/firebasejs/12.19.0/`. La gincana conectada **requiere internet**.
-- No publicar JSON de equipos ni tokens QR en GitHub. El archivo de respaldo entregado por la organización es privado.
-- Los fragmentos secretos están en documentos de acceso restringido a organizadores y facilitadores, pero la seguridad depende de la **honestidad y control de las cuentas del personal**.
-- La lógica física y la guía ilustrada de los retos son externas a la aplicación; no se han republicado la guía ni las plantillas en GitHub Pages.
-- Los archivos antiguos `app.js` y `admin.js` son vestigios de la beta sin conexión; las páginas nuevas usan `equipo-v3.js` y `organizacion-v3.js`.
-- Nunca se debe considerar el código de la aplicación como una prueba de campo. Debe comprobarse con Firebase configurado y al menos una simulación completa.
+Estos campos son la **configuración de cliente**, no credenciales administrativas. **Nunca subir** cuentas de servicio JSON, contraseñas de usuarios ni claves privadas a GitHub.
+
+### C. Crear cuenta del líder
+
+1. En Firebase Authentication → Users, crear una cuenta por correo y contraseña para el líder.
+2. Copiar su **UID**.
+3. En Firestore → Data, crear colección \`staff\`; documento cuyo ID sea **ese UID**, con el campo \`role\` (tipo string) = \`leader\`.
+4. **No crear cuentas manuales para los nueve facilitadores ni para los equipos**: las invitaciones QR les permiten vincular dispositivos por autenticación anónima.
+
+La configuración del líder se realiza desde Firebase Console; ningún usuario anónimo puede concederse permisos administrativos.
+
+### D. Desplegar las funciones y reglas
+
+Con Node.js 22 y Firebase CLI, desde la carpeta raíz del repositorio:
+
+\`\`\`bash
+npm install --prefix functions
+npm install -g firebase-tools
+firebase login
+firebase deploy --project ID_DEL_PROYECTO --only firestore:rules,functions
+\`\`\`
+
+El proyecto incluye:
+- \`firebase.json\`: despliegue de Functions y reglas.
+- \`firestore.rules\`: clientes autenticados en **solo lectura**, con autorización por rol y pertenencia al equipo.
+- \`functions/index.js\`: creación del evento, invitaciones, incorporación de equipos y facilitadores, emisión y canje de QR, asignación dinámica y cofre transaccional.
+- \`functions/package.json\`: dependencias y versión de Node.
+- \`firebase-config.js\`: configuración web (vacía hasta su activación).
+
+Las funciones necesitan permisos de Firebase Admin SDK sobre Firestore. **No utilizar reglas abiertas para «probar»**: las reglas restringidas ya están preparadas.
+
+### E. Prueba antes de la actividad real
+
+1. Entrar como líder, crear nueve equipos ficticios y los nombres de los facilitadores.
+2. Abrir las nueve invitaciones de equipo y las nueve de facilitador en dispositivos/navegadores diferentes; confirmar 9/9 y 9/9.
+3. Verificar que los equipos ven nueve ubicaciones **sin contenido de la misión**.
+4. Iniciar el evento y comprobar las estaciones iniciales distintas.
+5. Validar un equipo en E1 (u otra estación asignada), escanear el QR desde su propia app, y verificar entrega de dos dígitos y nueva estación.
+6. Intentar usar el mismo QR otra vez y un QR de otro equipo; ambos deben ser rechazados.
+7. Completar nueve validaciones para un equipo; verificar longitud de 18 dígitos, rechazo de entrada incorrecta y apertura correcta.
+8. Hacer competir dos equipos: el campo \`winner\` no debe reemplazarse tras la primera apertura correcta.
+9. Verificar en tiempo real el tablero de líder y la asignación dinámica frente a estaciones ocupadas.
+10. Comprobar red móvil y cámara en **las nueve ubicaciones**. Diferenciar visiblemente E2 y E9.
+11. **Las funciones y Firebase deben probarse en un proyecto de prueba** antes del evento. Para empezar limpio el día del evento, use otro proyecto o borre cuidadosamente el árbol \`events/current\` (incluidas subcolecciones) desde herramientas administrativas. El panel no incluye un botón de borrado para evitar eliminar el evento accidentalmente.
+
+### Recuperación de instalación y credenciales
+
+- Las invitaciones de equipo/facilitador son **privadas y transferibles solo durante el estado de preparación**. Si un iPhone crea un usuario anónimo distinto al instalar la PWA, vuelva a escanear su invitación **antes de iniciar**; el servidor cambia el dispositivo vinculado.
+- Una vez iniciada la gincana, las invitaciones no permiten suplantar un dispositivo ya vinculado. Si se pierde el teléfono durante el evento, será necesaria una recuperación administrativa deliberada.
+- Un QR de misión caduca a los 30 minutos; el facilitador puede emitir uno nuevo antes del canje. Emitir otro invalida el anterior.
+
+## Estructura de los datos
+
+\`\`\`text
+staff/{uid}                              -> role=leader o facilitator, station si corresponde
+events/current                          -> status, reservations y winner
+events/current/teams/A...I              -> nombre, UID vinculado, estación activa, avance
+events/current/teamInvites/A...I        -> invitación privada del equipo (solo líder)
+events/current/facInvites/E1...E9       -> invitación privada del facilitador (solo líder)
+events/current/rewards/A...I            -> fragmentos privados (solo Cloud Functions)
+events/current/proofs/A_E1 ... I_E9     -> hashes de QR temporales y registro de consumo
+\`\`\`
+
+El cálculo del ganador y de las reservas se ejecuta en transacciones en el servidor; no se basa en la hora que declare el teléfono del participante.
 
 ## Referencias técnicas
 
-- Firebase. (s. f.). *Get started with Cloud Firestore*. https://firebase.google.com/docs/firestore/quickstart
-- Firebase. (s. f.). *Security Rules and Firebase Authentication*. https://firebase.google.com/docs/rules/rules-and-auth
+- Firebase. (s. f.). *Call functions from your app*. https://firebase.google.com/docs/functions/callable
 - Firebase. (s. f.). *Transactions and batched writes*. https://firebase.google.com/docs/firestore/manage-data/transactions
-- ScanApp. (s. f.). *Getting started with html5-qrcode*. https://scanapp.org/html5-qrcode-docs/docs/intro
+- Firebase. (s. f.). *Firebase pricing plans*. https://firebase.google.com/docs/projects/billing/firebase-pricing-plans
+- Firebase. (s. f.). *Get realtime updates with Cloud Firestore*. https://firebase.google.com/docs/firestore/query-data/listen
